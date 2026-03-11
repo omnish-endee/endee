@@ -28,16 +28,18 @@ jobs:
       - name: Checkout Source Code
         uses: actions/checkout@v4
 
-      #---------------- STEP 2: CHECK CPP FILES FORMATING
-      # INSTALL CLANG-FORMAT AND CLANG-TIDY
-      - name: Install Linting Tools 
-        run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy shellcheck
-      
+      #---------------- STEP 2: CACHE FIRST, THEN INSTALL
       - name: Cache apt packages
         uses: awalsh128/cache-apt-pkgs-action@latest
         with:
           packages: clang-format clang-tidy shellcheck cmake libcurl4-openssl-dev
           version: 1.0
+      
+      # - name: Cache apt packages
+      #   uses: awalsh128/cache-apt-pkgs-action@latest
+      #   with:
+      #     packages: clang-format clang-tidy shellcheck cmake libcurl4-openssl-dev
+      #     version: 1.0
 
       # RUN CLANG-FORMAT FOR CODE STYLE, INDENTATIONS, SPACING
       # DRY RUN MAKE SURE IT WON'T CHANGE CODE ONLY IT WILL CHECK FORMATTING
@@ -51,14 +53,14 @@ jobs:
           rm -rf build
           mkdir -p build
           cd build 
-          cmake .. \ 
+          cmake .. \
             -DCMAKE_BUILD_TYPE=Release \
             -DUSE_AVX2=ON \
-            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
           cd ..
           find src/ -name "*.cpp" \
             -not -path "*/third_party/*" | \
-            xargs --no-run-if-empty clang-tidy \n
+            xargs --no-run-if-empty clang-tidy \
               -p build/compile_commands.json
 
       #---------------- STEP 3: CHECK SHELL SCRIPTS
