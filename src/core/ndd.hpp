@@ -1523,8 +1523,9 @@ public:
 
             // 0. Compute Filter Bitmap (Shared)
             std::optional<ndd::RoaringBitmap> active_filter_bitmap;
-            if (!filter_array.empty()) {
-                 active_filter_bitmap = entry.vector_storage->filter_store_->computeFilterBitmap(filter_array);
+            if(!filter_array.empty()) {
+                active_filter_bitmap =
+                        entry.vector_storage->filter_store_->computeFilterBitmap(filter_array);
             }
 
             // 1. Sparse Search (Async)
@@ -1549,7 +1550,8 @@ public:
                         sparse_query.values.push_back(p.second);
                     }
 
-                    const ndd::RoaringBitmap* filter_ptr = active_filter_bitmap.has_value() ? &(*active_filter_bitmap) : nullptr;
+                    const ndd::RoaringBitmap* filter_ptr =
+                            active_filter_bitmap.has_value() ? &(*active_filter_bitmap) : nullptr;
                     return entry.sparse_storage->search(sparse_query, k, filter_ptr);
                 });
             }
@@ -1564,48 +1566,59 @@ public:
                 std::vector<uint8_t> query_bytes =
                         ndd::quant::get_quantizer_dispatch(quant_level).quantize(query);
 
-                if (!active_filter_bitmap) {
-                     dense_results = entry.alg->searchKnn(query_bytes.data(), k, ef);
+                if(!active_filter_bitmap) {
+                    dense_results = entry.alg->searchKnn(query_bytes.data(), k, ef);
                 } else {
                     // Smart Filter Execution Strategy
                     auto& bitmap = *active_filter_bitmap;
                     size_t card = bitmap.cardinality();
 
-                    if (card == 0) {
+                    if(card == 0) {
                         // No results match filter
-                    } else if (card < params.prefilter_threshold) {
-                         // Strategy A: Brute Force on Small Subset
-                         std::vector<ndd::idInt> valid_ids;
-                         valid_ids.reserve(card);
-                         bitmap.iterate([](ndd::idInt id, void* ptr){
-                            static_cast<std::vector<ndd::idInt>*>(ptr)->push_back(id);
-                            return true;
-                         }, &valid_ids);
+                    } else if(card < params.prefilter_threshold) {
+                        // Strategy A: Brute Force on Small Subset
+                        std::vector<ndd::idInt> valid_ids;
+                        valid_ids.reserve(card);
+                        bitmap.iterate(
+                                [](ndd::idInt id, void* ptr) {
+                                    static_cast<std::vector<ndd::idInt>*>(ptr)->push_back(id);
+                                    return true;
+                                },
+                                &valid_ids);
 
-                         // Fetch vectors
-                         auto vector_batch = entry.vector_storage->get_vectors_batch(valid_ids);
-                         
-                         // Prepare subset for bruteforce search
-                         std::vector<std::pair<idInt, std::vector<uint8_t>>> vector_subset;
-                         vector_subset.reserve(vector_batch.size());
-                         for(const auto& [nid, vbytes] : vector_batch) {
-                             vector_subset.emplace_back(nid, vbytes);
-                         }
-                         
-                         dense_results = hnswlib::searchKnnSubset<float>(
-                             query_bytes.data(), vector_subset, k, space);
-                         
+                        // Fetch vectors
+                        auto vector_batch = entry.vector_storage->get_vectors_batch(valid_ids);
+
+                        // Prepare subset for bruteforce search
+                        std::vector<std::pair<idInt, std::vector<uint8_t>>> vector_subset;
+                        vector_subset.reserve(vector_batch.size());
+                        for(const auto& [nid, vbytes] : vector_batch) {
+                            vector_subset.emplace_back(nid, vbytes);
+                        }
+
+                        dense_results = hnswlib::searchKnnSubset<float>(
+                                query_bytes.data(), vector_subset, k, space);
+
                     } else {
                         // Strategy B: Filtered HNSW Search
                         BitMapFilterFunctor functor(bitmap);
                         size_t effective_ef = ef > 0 ? ef : settings::DEFAULT_EF_SEARCH;
 
                         // Try to use optimized templated search if algorithm matches
-                        auto* hnsw_alg = dynamic_cast<hnswlib::HierarchicalNSW<float>*>(entry.alg.get());
-                        if (hnsw_alg) {
-                             dense_results = hnsw_alg->searchKnn(query_bytes.data(), k, effective_ef, &functor, params.boost_percentage);
+                        auto* hnsw_alg =
+                                dynamic_cast<hnswlib::HierarchicalNSW<float>*>(entry.alg.get());
+                        if(hnsw_alg) {
+                            dense_results = hnsw_alg->searchKnn(query_bytes.data(),
+                                                                k,
+                                                                effective_ef,
+                                                                &functor,
+                                                                params.boost_percentage);
                         } else {
-                             dense_results = entry.alg->searchKnn(query_bytes.data(), k, effective_ef, &functor, params.boost_percentage);
+                            dense_results = entry.alg->searchKnn(query_bytes.data(),
+                                                                 k,
+                                                                 effective_ef,
+                                                                 &functor,
+                                                                 params.boost_percentage);
                         }
                     }
                 }
@@ -1794,8 +1807,7 @@ public:
                     }
                 } else {
                     LOG_DEBUG("Filter cardinality too high for pre-filtering ("
-                              << filter_cardinality
-                              << " >= " << params.prefilter_threshold
+                              << filter_cardinality << " >= " << params.prefilter_threshold
                               << "), returning post-filter results");
                 }
             }

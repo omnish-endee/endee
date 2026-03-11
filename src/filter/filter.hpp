@@ -16,7 +16,7 @@
 #include "mdbx/mdbx.h"
 #include "../utils/log.hpp"
 #include "../core/types.hpp"
-#include "../hnsw/hnswlib.h" // For BaseFilterFunctor
+#include "../hnsw/hnswlib.h"  // For BaseFilterFunctor
 
 #include "numeric_index.hpp"
 #include "category_index.hpp"
@@ -31,11 +31,11 @@ enum class FieldType : uint8_t {
 // Filter Functor for HNSW
 class BitMapFilterFunctor : public hnswlib::BaseFilterFunctor {
     const ndd::RoaringBitmap& bitmap_;
+
 public:
-    BitMapFilterFunctor(const ndd::RoaringBitmap& bitmap) : bitmap_(bitmap) {}
-    bool operator()(ndd::idInt id) override {
-        return bitmap_.contains(id);
-    }
+    BitMapFilterFunctor(const ndd::RoaringBitmap& bitmap) :
+        bitmap_(bitmap) {}
+    bool operator()(ndd::idInt id) override { return bitmap_.contains(id); }
 };
 
 class Filter {
@@ -246,7 +246,9 @@ public:
                         str_val = val.get<bool>() ? "1" : "0";
                     } else {
                         str_val = std::to_string(val.get<int>());
-                        if (str_val.size() > 255) throw std::runtime_error("Category value too long");
+                        if(str_val.size() > 255) {
+                            throw std::runtime_error("Category value too long");
+                        }
                     }
                     std::string key = format_filter_key(field, str_val);
                     or_result = category_index_->get_bitmap_by_key(key);
@@ -284,7 +286,9 @@ public:
                                 str_val = std::to_string(v.get<int>());
                             }
                             if(!str_val.empty()) {
-                                if (str_val.size() > 255) throw std::runtime_error("Category value too long");
+                                if(str_val.size() > 255) {
+                                    throw std::runtime_error("Category value too long");
+                                }
                                 std::string key = format_filter_key(field, str_val);
                                 or_result |= category_index_->get_bitmap_by_key(key);
                             }
@@ -328,23 +332,28 @@ public:
             } else {
                 throw std::runtime_error("Unsupported operator: " + op);
             }
-            
+
             partial_results.push_back(std::move(or_result));
         }
 
         // Optimization: Sort by cardinality (smallest first)
-        std::sort(partial_results.begin(), partial_results.end(), 
-                 [](const ndd::RoaringBitmap& a, const ndd::RoaringBitmap& b) {
-                     return a.cardinality() < b.cardinality();
-                 });
+        std::sort(partial_results.begin(),
+                  partial_results.end(),
+                  [](const ndd::RoaringBitmap& a, const ndd::RoaringBitmap& b) {
+                      return a.cardinality() < b.cardinality();
+                  });
 
-        if (partial_results.empty()) return ndd::RoaringBitmap();
+        if(partial_results.empty()) {
+            return ndd::RoaringBitmap();
+        }
 
         ndd::RoaringBitmap final_result = partial_results[0];
         for(size_t i = 1; i < partial_results.size(); ++i) {
             final_result &= partial_results[i];
             // If result becomes empty, stop early
-            if(final_result.isEmpty()) return final_result;
+            if(final_result.isEmpty()) {
+                return final_result;
+            }
         }
 
         return final_result;
