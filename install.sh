@@ -184,7 +184,7 @@ distro_factory() {
         . /etc/os-release
         DISTRO_ID="${ID:-unknown}"
         DISTRO_VERSION_ID="${VERSION_ID:-unknown}"
-        DISTRO_CODENAME="${VERSION_CODENAME:-unknown}"
+        export DISTRO_CODENAME="${VERSION_CODENAME:-unknown}"
 
         case $DISTRO_ID in
             ubuntu) INSTALLER_FUNC="install_dependencies_ubuntu_family $DISTRO_VERSION_ID" ;;
@@ -200,8 +200,8 @@ distro_factory() {
 
 add_frontend() {
     log "pulling frontend"
-    mkdir -p $script_dir/frontend
-    cd $script_dir/frontend
+    mkdir -p "$script_dir/frontend"
+    cd "$script_dir/frontend"
     curl -L -o react-dist.zip https://github.com/EndeeLabs/endee-web-ui/releases/download/v1.0.2/endee-web-ui.zip
     unzip -o react-dist.zip
     rm react-dist.zip
