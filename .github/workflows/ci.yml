@@ -65,6 +65,9 @@ jobs:
               --header-filter='^.*(src)/.*'
 
       #---------------- STEP 3: CHECK SHELL SCRIPTS
-      - name: Lint Shell Scripts 
+      - name: Lint Shell Scripts
         run: |
-          find . -name "*.sh" | xargs shellcheck
+          find . -name "*.sh" \
+            -not -path "*/build/*" \
+            -not -path "*/third_party/*" | \
+          xargs --no-run-if-empty shellcheck
