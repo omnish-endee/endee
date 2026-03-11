@@ -1,0 +1,53 @@
+# CONTINUOUS INTEGRATION WORKFLOW
+# LINT TEST -> UNIT TEST -> BUILD
+
+
+name: Continuous Integration 
+
+# ========== TRIGGER EVENT ==========
+on: 
+  # PUSH EVENT  
+  push:
+    branches: [ feature/linting_tests ]
+  # PULL REQUEST EVENT
+  pull_request:
+    branches: [ feature/continuous_integration]
+
+  
+# ========== JOBS ==========
+jobs:
+
+  # ----- JOB: 1 -> LINT AND CODE QUALITY 
+  lint:
+    name: Lint and Code Quality Check
+    runs-on: ubuntu-latest
+
+    steps:
+
+      #---------------- STEP 1: CHECKOUT TO SOURCE CODE
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      #---------------- STEP 2: CHECK CPP FILES FORMATING
+      # INSTALL CLANG-FORMAT AND CLANG-TIDY
+      - name: Install Linting Tools 
+        run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy
+
+      # RUN CLANG-FORMAT FOR CODE STYLE, INDENTATIONS, SPACING
+      # DRY RUN MAKE SURE IT WON'T CHANGE CODE ONLY IT WILL CHECK FORMATTING
+      - name: C++ and HPP formatting
+        run: |
+          find src/ \( -name "*.cpp" -o -name "*.hpp" \) | xargs clang-format --dry-run --Werror
+
+      # CHECK FOR BUGS AND BAD PRACTICES USING CLANG-TIDY
+      - name: C++ and HPP Static Analysis
+        run: |
+          find src/ \( -name "*.cpp" -o -name "*.hpp" \) | xargs clang-tidy -- -Iinclude/
+
+      #---------------- STEP 3: CHECK SHELL SCRIPTS
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+
+      - name: Lint Shell Scripts 
+        run: |
+          find . -name "*.sh" | xargs shellcheck
