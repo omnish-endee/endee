@@ -42,7 +42,8 @@ jobs:
       # CHECK FOR BUGS AND BAD PRACTICES USING CLANG-TIDY
       - name: C++ and HPP Static Analysis
         run: |
-          find src/ \( -name "*.cpp" -o -name "*.hpp" \) -not -path "*/third_party/*" | xargs clang-tidy -- -Iinclude/
+          mkdir -p build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DUSE_AVX2=ON -DCMAKE_EXPORT_COMPILE_COMMANDS=ON && cd ..
+          find src/ -name "*.cpp" -not -path "*/third_party/*" | xargs --no-run-if-empty clang-tidy -p build/compile_commands.json
 
       #---------------- STEP 3: CHECK SHELL SCRIPTS
       - name: Install shellcheck
