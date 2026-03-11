@@ -163,6 +163,7 @@ distro_factory() {
             OS_FAMILY="mac"
             ;;
         *)
+            uname_s=$(uname -s)
             error "Unsupported kernel: $uname_s"
             exit 1
             ;;
@@ -179,6 +180,7 @@ distro_factory() {
     fi
 
     if [ -f /etc/os-release ]; then
+        # shellcheck disable=SC1091
         . /etc/os-release
         DISTRO_ID="${ID:-unknown}"
         DISTRO_VERSION_ID="${VERSION_ID:-unknown}"

@@ -70,4 +70,4 @@ jobs:
           find . -name "*.sh" \
             -not -path "*/build/*" \
             -not -path "*/third_party/*" | \
-          xargs --no-run-if-empty shellcheck
+          xargs --no-run-if-empty shellcheck -x
