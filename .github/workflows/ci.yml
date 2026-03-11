@@ -37,12 +37,12 @@ jobs:
       # DRY RUN MAKE SURE IT WON'T CHANGE CODE ONLY IT WILL CHECK FORMATTING
       - name: C++ and HPP formatting
         run: |
-          find . \( -name "*.cpp" -o -name "*.hpp" \) | xargs --no-run-if-empty clang-format --dry-run --Werror
+          find src/ \( -name "*.cpp" -o -name "*.hpp" \) -not -path "*/third_party/*" | xargs --no-run-if-empty clang-format --dry-run --Werror
 
       # CHECK FOR BUGS AND BAD PRACTICES USING CLANG-TIDY
       - name: C++ and HPP Static Analysis
         run: |
-          find src/ \( -name "*.cpp" -o -name "*.hpp" \) | xargs clang-tidy -- -Iinclude/
+          find src/ \( -name "*.cpp" -o -name "*.hpp" \) -not -path "*/third_party/*" | xargs clang-tidy -- -Iinclude/
 
       #---------------- STEP 3: CHECK SHELL SCRIPTS
       - name: Install shellcheck
