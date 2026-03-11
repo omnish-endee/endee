@@ -31,7 +31,7 @@ jobs:
       #---------------- STEP 2: CHECK CPP FILES FORMATING
       # INSTALL CLANG-FORMAT AND CLANG-TIDY
       - name: Install Linting Tools 
-        run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy
+        run: sudo apt-get update && sudo apt-get install -y clang-format clang-tidy shellcheck
       
       - name: Cache apt packages
         uses: awalsh128/cache-apt-pkgs-action@latest
@@ -48,6 +48,7 @@ jobs:
       # CHECK FOR BUGS AND BAD PRACTICES USING CLANG-TIDY
       - name: C++ Static Analysis
         run: |
+          rm -rf build
           mkdir -p build
           cd build 
           cmake .. \ 
@@ -61,9 +62,6 @@ jobs:
               -p build/compile_commands.json
 
       #---------------- STEP 3: CHECK SHELL SCRIPTS
-      - name: Install shellcheck
-        run: sudo apt-get install -y shellcheck
-
       - name: Lint Shell Scripts 
         run: |
           find . -name "*.sh" | xargs shellcheck
