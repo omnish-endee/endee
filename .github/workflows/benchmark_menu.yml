@@ -16,7 +16,7 @@ name: Benchmark Menu
 # ========================= TRIGGER EVENT =========================
 on:
 
-  # ---- TRIGGER WHEN PREVIOUS WORKFLOW COMPLETED ( PREVIOUS WORKFLOW WAS CONTINUOUS INTEGRATION) 
+  # ---- TRIGGER WHEN PREVIOUS WORKFLOW COMPLETED ( PREVIOUS WORKFLOW WAS CONTINUOUS INTEGRATION)  
   workflow_run:
     workflows: [ Continuous Integration ]
     types: [ completed ]
