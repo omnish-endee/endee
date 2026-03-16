@@ -215,9 +215,9 @@ jobs:
           IP=$(aws ec2 describe-instances --instance-ids $ID \
                --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           echo "public_ip=$IP" >> $GITHUB_OUTPUT
-          echo "Server A (Endee) → $ID / $IP"
+          echo "Endee Server → $ID / $IP"
  
-      - name: Launch Server B — Benchmark Server
+      - name: Launch Benchmark Server
         id: start_benchmark_server
         run: |
           ID=$(aws ec2 run-instances \
@@ -240,7 +240,7 @@ jobs:
           IP=$(aws ec2 describe-instances --instance-ids $ID \
                --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
           echo "public_ip=$IP" >> $GITHUB_OUTPUT
-          echo "Server B (Benchmark) → $ID / $IP"
+          echo "Benchmark Server → $ID / $IP"
  
       - name: Wait for SSH on both servers
         run: |
