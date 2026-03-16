@@ -20,7 +20,7 @@ env:
   AMI_ID: ${{ vars.AMI_ID }}
 
 jobs:
-  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ====== 
+  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ======  
   validate-command:
     name: Validate Command
     runs-on: ubuntu-latest
