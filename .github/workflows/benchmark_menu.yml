@@ -20,7 +20,6 @@ on:
   workflow_run:
     workflows: [ Continuous Integration ]
     types: [ completed ]
-    branches: [ feature/ci_main ]
 
 permissions:
   contents: read
@@ -32,7 +31,7 @@ jobs:
 
   # ---- JOB 1: FIGURE OUT WHICH PR CAUSED THIS CI RUN
   # WHEN WORKFLOW_RUN TRIGGER EVENT IS FIRES, WE GET INTO DETACHED CONTEXT. SO WE LOST CONTEXT OF THE PR TRIGGERED CI.
-  # WE NEED TO FIGURE OUT WHICH PR CAUSED THIS CI RUN.
+  # WE NEED TO FIGURE OUT WHICH PR CAUSED THIS CI RUN. 
 
   resolve-pr:
     name: Retrieve PR Information
