@@ -20,7 +20,7 @@ env:
   AMI_ID: ${{ vars.AMI_ID }}
 
 jobs:
-  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ====== 
+  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ======  
   validate-command:
     name: Validate Command
     runs-on: ubuntu-latest
@@ -207,7 +207,6 @@ jobs:
               {Key=CIRunId,Value=${{ github.run_id }}},
               {Key=Role,Value=endee-server}
             ]" \
-            --user-data file://scripts/cloud-init-server-a.sh \
             --query 'Instances[0].InstanceId' --output text)
  
           echo "instance_id=$ID" >> $GITHUB_OUTPUT
@@ -232,7 +231,6 @@ jobs:
               {Key=CIRunId,Value=${{ github.run_id }}},
               {Key=Role,Value=benchmark-server}
             ]" \
-            --user-data file://scripts/cloud-init-server-b.sh \
             --query 'Instances[0].InstanceId' --output text)
  
           echo "instance_id=$ID" >> $GITHUB_OUTPUT
