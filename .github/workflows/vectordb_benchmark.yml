@@ -14,10 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AWS_REGION: ${{ var.AWS_REGION }}
-  ENDEE_SERVER_TYPE: ${{ var.ENDEE_SERVER_TYPE }}
-  BENCHMARKING_SERVER_TYPE: ${{ var.BENCHMARKING_SERVER_TYPE }}
-  AMI_ID: ${{ var.AMI_ID }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
+  ENDEE_SERVER_TYPE: ${{ vars.ENDEE_SERVER_TYPE }}
+  BENCHMARKING_SERVER_TYPE: ${{ vars.BENCHMARKING_SERVER_TYPE }}
+  AMI_ID: ${{ vars.AMI_ID }}
 
 jobs:
   # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ====== 
