@@ -7,11 +7,11 @@ name: Continuous Integration
 # ========== TRIGGER EVENT ==========
 on: 
   # PUSH EVENT  
-  push:
-    branches: [ feature/linting_tests ]
+  # push:
+  #   branches: [ feature/linting_tests ]
   # PULL REQUEST EVENT
   pull_request:
-    branches: [ feature/continuous_integration]
+    branches: [ feature/ci_main]
 
   
 # ========== JOBS ==========
