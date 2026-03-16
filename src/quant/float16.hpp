@@ -859,9 +859,9 @@ namespace ndd {
                     __m128i p3 = _mm512_cvtepi32_epi8(i3);
 
                     _mm_storeu_si128((__m128i*)&data_ptr[i], p0);
-                    _mm_storeu_si128((__m128i*)&data_ptr[i+16], p1);
-                    _mm_storeu_si128((__m128i*)&data_ptr[i+32], p2);
-                    _mm_storeu_si128((__m128i*)&data_ptr[i+48], p3);
+                    _mm_storeu_si128((__m128i*)&data_ptr[i + 16], p1);
+                    _mm_storeu_si128((__m128i*)&data_ptr[i + 32], p2);
+                    _mm_storeu_si128((__m128i*)&data_ptr[i + 48], p3);
                 }
 #elif defined(USE_AVX2)
                 size_t i = 0;

@@ -242,7 +242,8 @@ namespace ndd {
         }
 
         // Search using BMW algorithm (DAAT)
-        std::vector<std::pair<ndd::idInt, float>> search(const SparseVector& query, size_t k, const ndd::RoaringBitmap* filter = nullptr) {
+        std::vector<std::pair<ndd::idInt, float>>
+        search(const SparseVector& query, size_t k, const ndd::RoaringBitmap* filter = nullptr) {
             if(query.empty() || k == 0) {
                 return {};
             }
