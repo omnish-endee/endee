@@ -41,7 +41,7 @@ jobs:
       github.event.workflow_run.event == 'pull_request'
     
     outputs:
-      # PR NUMBER IS PULL REQUEST NUMBER UNIQUE IDENTIFIER
+      # PR NUMBER IS PULL REQUEST NUMBER UNIQUE IDENTIFIER 
       # HEAD SHA IS THE SPECIFIC HASH OF THE LAS COMMIT IN SOURCE BRANCH
       # HEAD REF IS THE NAME OF THE SOURCE BRANCH BEING MERGED
       pr_number: ${{ steps.find-pr.outputs.pr_number }}
