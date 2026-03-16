@@ -14,10 +14,10 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  AWS_REGION:
-  ENDEE_SERVER_TYPE:
-  BENCHMARKING_SERVER_TYPE:
-  AMI_ID:  
+  AWS_REGION:${{ secrets.AWS_REGION }}
+  ENDEE_SERVER_TYPE:${{ secrets.ENDEE_SERVER_TYPE }}
+  BENCHMARKING_SERVER_TYPE:${{ secrets.BENCHMARKING_SERVER_TYPE }}
+  AMI_ID:${{ secrets.AMI_ID }}
 
 jobs:
   # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ======
@@ -192,14 +192,14 @@ jobs:
               target_url: `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
             });
  
-      - name: Launch Server A — Endee Server
-        id: start_a
+      - name: Launch Endee Server
+        id: start_endee_server
         run: |
           ID=$(aws ec2 run-instances \
-            --image-id            ${{ env.AMI_ID }} \
-            --instance-type       ${{ env.SERVER_A_INSTANCE_TYPE }} \
-            --key-name            ${{ secrets.SERVER_A_KEY_NAME }} \
-            --security-group-ids  ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+            --image-id            ${{ secrets.AMI_ID }} \
+            --instance-type       ${{ secrets.ENDEE_SERVER_TYPE }} \
+            --key-name            ${{ secrets.ENDEE_PEM }} \
+            --security-group-ids  ${{ secrets.ENDEE_SERVER_GROUP_ID }} \
             --subnet-id           ${{ secrets.AWS_SUBNET_ID }} \
             --iam-instance-profile Name=${{ secrets.AWS_INSTANCE_PROFILE }} \
             --tag-specifications "ResourceType=instance,Tags=[
@@ -222,9 +222,9 @@ jobs:
         run: |
           ID=$(aws ec2 run-instances \
             --image-id            ${{ env.AMI_ID }} \
-            --instance-type       ${{ env.SERVER_B_INSTANCE_TYPE }} \
-            --key-name            ${{ secrets.SERVER_B_KEY_NAME }} \
-            --security-group-ids  ${{ secrets.AWS_SECURITY_GROUP_ID }} \
+            --instance-type       ${{ env.BENCHMARKING_SERVER_TYPE }} \
+            --key-name            ${{ secrets.VECTORDBBENCH_SERVER_PEM }} \
+            --security-group-ids  ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
             --subnet-id           ${{ secrets.AWS_SUBNET_ID }} \
             --iam-instance-profile Name=${{ secrets.AWS_INSTANCE_PROFILE }} \
             --tag-specifications "ResourceType=instance,Tags=[
@@ -284,7 +284,7 @@ jobs:
   # JOB 2: Deploy Endee server on Server A from the PR branch
   # ──────────────────────────────────────────────────────────
   deploy-endee:
-    name: Deploy Endee (Server A)
+    name: Deploy Endee
     needs: [validate-command, provision-servers]
     runs-on: ubuntu-latest
  
@@ -294,14 +294,14 @@ jobs:
         with:
           ref: ${{ needs.validate-command.outputs.head_sha }}
  
-      - name: Setup SSH for Server A
+      - name: Setup SSH for Endee Server
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_A_SSH_PRIVATE_KEY }}" > ~/.ssh/a.pem
-          chmod 600 ~/.ssh/a.pem
+          echo "${{ secrets.ENDEE_PEM }}" > ~/.ssh/endee.pem
+          chmod 600 ~/.ssh/endee.pem
           ssh-keyscan -H ${{ needs.provision-servers.outputs.server_a_ip }} >> ~/.ssh/known_hosts
  
-      - name: Bundle and transfer branch code → Server A
+      - name: Bundle and transfer branch code → Endee Server
         run: |
           tar --exclude='.git' \
               --exclude='node_modules' \
@@ -314,10 +314,10 @@ jobs:
  
       - name: Extract, install, start Endee server
         env:
-          SERVER_A_IP: ${{ needs.provision-servers.outputs.server_a_ip }}
+          ENDEE_SERVER_IP: ${{ needs.provision-servers.outputs.endee_server_ip }}
           MODE:        ${{ needs.validate-command.outputs.mode }}
         run: |
-          ssh -i ~/.ssh/a.pem ec2-user@$SERVER_A_IP << ENDSSH
+          ssh -i ~/.ssh/endee.pem ec2-user@$ENDEE_SERVER_IP << ENDSSH
             set -euo pipefail
             cd /opt/endee
             tar -xzf bundle.tar.gz && rm bundle.tar.gz
@@ -326,7 +326,7 @@ jobs:
             source .venv/bin/activate
             [ -f requirements.txt ] && pip install -r requirements.txt -q
  
-            # start_endee.sh should accept "dense", "hybrid", or "all"
+            # start_endee.sh should accept "dense", "hybrid"
             # and configure the index type accordingly before starting
             export ENDEE_MODE="${MODE}"
             bash scripts/start_endee.sh "${MODE}"
@@ -366,7 +366,7 @@ jobs:
   # JOB 3: Run benchmark on Server B with the chosen mode
   # ──────────────────────────────────────────────────────────
   run-benchmark:
-    name: Run Benchmark (Server B)
+    name: Run Benchmark
     needs: [validate-command, provision-servers, deploy-endee]
     runs-on: ubuntu-latest
  
@@ -387,26 +387,26 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ env.AWS_REGION }}
  
-      - name: Setup SSH for Server B
+      - name: Setup SSH for Benchmark Server
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SERVER_B_SSH_PRIVATE_KEY }}" > ~/.ssh/b.pem
+          echo "${{ secrets.VECTORDBBENCH_SERVER_PEM }}" > ~/.ssh/b.pem
           chmod 600 ~/.ssh/b.pem
           ssh-keyscan -H ${{ needs.provision-servers.outputs.server_b_ip }} >> ~/.ssh/known_hosts
  
-      - name: Transfer benchmark suite → Server B
+      - name: Transfer benchmark suite → Benchmark Server
         run: |
           scp -i ~/.ssh/b.pem -r benchmark/ \
-            ec2-user@${{ needs.provision-servers.outputs.server_b_ip }}:/opt/benchmark/
+            ec2-user@${{ needs.provision-servers.outputs.benchmark_server_ip }}:/opt/benchmark/
  
       - name: Execute benchmark with mode=${{ needs.validate-command.outputs.mode }}
         id: run
         env:
-          SERVER_B_IP: ${{ needs.provision-servers.outputs.server_b_ip }}
+          BENCHMARK_SERVER_IP: ${{ needs.provision-servers.outputs.benchmark_server_ip }}
           ENDEE_HOST:  ${{ needs.provision-servers.outputs.server_a_ip }}
           MODE:        ${{ needs.validate-command.outputs.mode }}
         run: |
-          ssh -i ~/.ssh/b.pem ec2-user@$SERVER_B_IP \
+          ssh -i ~/.ssh/b.pem ec2-user@$BENCHMARK_SERVER_IP \
             "ENDEE_HOST=$ENDEE_HOST BENCHMARK_MODE=$MODE bash /opt/benchmark/run_benchmark.sh" \
             | tee /tmp/bench_output.txt
  
