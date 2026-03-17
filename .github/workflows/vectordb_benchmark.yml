@@ -214,18 +214,18 @@ jobs:
         id: start_benchmark_server
         run: |
           aws ec2 start-instances \
-            --instance-ids ${{ secrets.BENCHMARK_INSTANCE_ID }}
+            --instance-ids ${{ secrets.BENCHMARKING_INSTANCE_ID }}
           aws ec2 wait instance-running \
-            --instance-ids ${{ secrets.BENCHMARK_INSTANCE_ID }}
+            --instance-ids ${{ secrets.BENCHMARKING_INSTANCE_ID }}
           
           IP=$(aws ec2 describe-instances \
-              --instance-ids ${{ secrets.BENCHMARK_INSTANCE_ID }} \
+              --instance-ids ${{ secrets.BENCHMARKING_INSTANCE_ID }} \
               --query 'Reservations[0].Instances[0].PublicIpAddress' \
               --output text)
           
-          echo "instance_id=${{ secrets.BENCHMARK_INSTANCE_ID }}" >> $GITHUB_OUTPUT
+          echo "instance_id=${{ secrets.BENCHMARKING_INSTANCE_ID }}" >> $GITHUB_OUTPUT
           echo "public_ip=$IP" >> $GITHUB_OUTPUT
-          echo "Benchmark Server → ${{ secrets.BENCHMARK_INSTANCE_ID }} / $IP"
+          echo "Benchmark Server → ${{ secrets.BENCHMARKING_INSTANCE_ID }} / $IP"
  
       - name: Wait for SSH on both servers
         run: |
