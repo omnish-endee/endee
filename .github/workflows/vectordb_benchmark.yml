@@ -229,6 +229,11 @@ jobs:
  
       - name: Wait for SSH on both servers
         run: |
+          ENDEE_PEM_FILE="~/.ssh/${{ secrets.ENDEE_PEM }}"
+          BENCHMARKING_PEM_FILE="~/.ssh/${{ secrets.BENCHMARKING_PEM }}"
+          ENDEE_IP="${{ steps.start_endee_server.outputs.public_ip }}"
+          BENCHMARKING_IP="${{ steps.start_benchmark_server.outputs.public_ip }}"
+
           echo "Creating PEM files for both hosts..." 
           mkdir -p ~/.ssh 
           echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > ~/.ssh/${{ secrets.ENDEE_PEM }}
@@ -241,8 +246,8 @@ jobs:
 
           echo "Waiting for SSH on Endee Server..."
           for i in {1..5}; do
-            if ssh -i ~/.ssh/${{ secrets.ENDEE_PEM }} -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ec2-user@${{ steps.start_endee_server.outputs.public_ip }} "echo ok" 2>/dev/null; then
-              echo "SSH ready on Endee @ ${{ steps.start_endee_server.outputs.public_ip }}"
+            if ssh -i "$ENDEE_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ec2-user@"$ENDEE_IP" "echo ok" 2>/dev/null; then
+              echo "SSH ready on Endee @ $ENDEE_IP"
               break
             fi
             echo "Failed $i/5 retrying in 1 second..."
@@ -251,8 +256,8 @@ jobs:
 
           echo "Waiting for SSH on Benchmark Server..."
           for i in {1..5}; do
-            if ssh -i ~/.ssh/${{ secrets.BENCHMARKING_PEM }} -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ec2-user@${{ steps.start_benchmark_server.outputs.public_ip }} "echo ok" 2>/dev/null; then
-              echo "SSH ready on Benchmark @ ${{ steps.start_benchmark_server.outputs.public_ip }}"
+            if ssh -i "$BENCHMARKING_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ec2-user@"$BENCHMARKING_IP" "echo ok" 2>/dev/null; then
+              echo "SSH ready on Benchmark @ $BENCHMARKING_IP"
               break
             fi
             echo "Failed $i/5 retrying in 1 second..."
