@@ -247,7 +247,7 @@ jobs:
           echo "Waiting for SSH on Endee Server..."
           ENDEE_SSH_READY=false
           for i in {1..5}; do
-            if ssh -i "$ENDEE_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ec2-user@"$ENDEE_IP" "echo ok" 2>/dev/null; then
+            if ssh -i "$ENDEE_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ubuntu@"$ENDEE_IP" "echo ok" 2>/dev/null; then
               echo "SSH ready on Endee @ $ENDEE_IP"
               ENDEE_SSH_READY=true
               break
@@ -263,7 +263,7 @@ jobs:
           echo "Waiting for SSH on Benchmark Server..."
           BENCHMARKING_SSH_READY=false
           for i in {1..5}; do
-            if ssh -i "$BENCHMARKING_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ec2-user@"$BENCHMARKING_IP" "echo ok" 2>/dev/null; then
+            if ssh -i "$BENCHMARKING_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ubuntu@"$BENCHMARKING_IP" "echo ok" 2>/dev/null; then
               echo "SSH ready on Benchmark @ $BENCHMARKING_IP"
               BENCHMARKING_SSH_READY=true
               break
