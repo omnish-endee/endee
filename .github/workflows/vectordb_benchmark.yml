@@ -8,7 +8,7 @@ on:
 
 
 # ONYLY ONE BENCHMARK RUN AT A TIME PER PR
-# IF SAME PR COMMENT UPDATED FROM BENCHMARK/DENSE TO BENCHMARK/HYBRID, CANCEL INPROGRESS RUN AND START UPDATED ONE    
+# IF SAME PR COMMENT UPDATED FROM BENCHMARK/DENSE TO BENCHMARK/HYBRID, CANCEL INPROGRESS RUN AND START UPDATED ONE 
 concurrency:
   group: vectordb-benchmark-pr${{ github.event.issue.number }}
   cancel-in-progress: true
@@ -237,11 +237,11 @@ jobs:
           echo "Creating PEM files for both hosts..." 
           mkdir -p ~/.ssh 
           echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > "$ENDEE_PEM_FILE"
-          chmod 600 "$ENDEE_PEM_FILE"
+          chmod 400 "$ENDEE_PEM_FILE"
           echo "Endee PEM file Created"
 
           echo "${{ secrets.BENCHMARKING_SSH_PRIVATE_KEY }}" > "$BENCHMARKING_PEM_FILE"
-          chmod 600 "$BENCHMARKING_PEM_FILE"
+          chmod 400 "$BENCHMARKING_PEM_FILE"
           echo "BENCHMARKING PEM file Created"
 
           echo "Waiting for SSH on Endee Server..."
