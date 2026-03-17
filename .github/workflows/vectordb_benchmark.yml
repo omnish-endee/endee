@@ -229,41 +229,52 @@ jobs:
  
       - name: Wait for SSH on both servers
         run: |
-          ENDEE_PEM_FILE="~/.ssh/${{ secrets.ENDEE_PEM }}"
-          BENCHMARKING_PEM_FILE="~/.ssh/${{ secrets.BENCHMARKING_PEM }}"
+          ENDEE_PEM_FILE="$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
+          BENCHMARKING_PEM_FILE="$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}"
           ENDEE_IP="${{ steps.start_endee_server.outputs.public_ip }}"
           BENCHMARKING_IP="${{ steps.start_benchmark_server.outputs.public_ip }}"
 
           echo "Creating PEM files for both hosts..." 
           mkdir -p ~/.ssh 
-          echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > ~/.ssh/${{ secrets.ENDEE_PEM }}
-          chmod 600 ~/.ssh/${{ secrets.ENDEE_PEM }}
+          echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > "$ENDEE_PEM_FILE"
+          chmod 600 "$ENDEE_PEM_FILE"
           echo "Endee PEM file Created"
 
-          echo "${{ secrets.BENCHMARKING_SSH_PRIVATE_KEY }}" > ~/.ssh/${{ secrets.BENCHMARKING_PEM }}
-          chmod 600 ~/.ssh/${{ secrets.BENCHMARKING_PEM }}
+          echo "${{ secrets.BENCHMARKING_SSH_PRIVATE_KEY }}" > "$BENCHMARKING_PEM_FILE"
+          chmod 600 "$BENCHMARKING_PEM_FILE"
           echo "BENCHMARKING PEM file Created"
 
           echo "Waiting for SSH on Endee Server..."
+          ENDEE_SSH_READY=false
           for i in {1..5}; do
             if ssh -i "$ENDEE_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ec2-user@"$ENDEE_IP" "echo ok" 2>/dev/null; then
               echo "SSH ready on Endee @ $ENDEE_IP"
+              ENDEE_SSH_READY=true
               break
             fi
             echo "Failed $i/5 retrying in 1 second..."
             sleep 1
           done
+          if [ "$ENDEE_SSH_READY" = false ]; then
+            echo "Failed to SSH to Endee Server"
+            exit 1
+          fi
 
           echo "Waiting for SSH on Benchmark Server..."
+          BENCHMARKING_SSH_READY=false
           for i in {1..5}; do
             if ssh -i "$BENCHMARKING_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ec2-user@"$BENCHMARKING_IP" "echo ok" 2>/dev/null; then
               echo "SSH ready on Benchmark @ $BENCHMARKING_IP"
+              BENCHMARKING_SSH_READY=true
               break
             fi
             echo "Failed $i/5 retrying in 1 second..."
             sleep 1
           done
-          
+          if [ "$BENCHMARKING_SSH_READY" = false ]; then
+            echo "Failed to SSH to Benchmark Server"
+            exit 1
+          fi
  
       - name: Update PR → Servers up
         uses: actions/github-script@v7
