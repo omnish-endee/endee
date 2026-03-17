@@ -213,26 +213,19 @@ jobs:
       - name: Launch Benchmark Server
         id: start_benchmark_server
         run: |
-          ID=$(aws ec2 run-instances \
-            --image-id            ${{ env.AMI_ID }} \
-            --instance-type       ${{ env.BENCHMARKING_SERVER_TYPE }} \
-            --key-name            ${{ secrets.VECTORDBBENCH_SERVER_PEM }} \
-            --security-group-ids  ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
-            --subnet-id           ${{ secrets.AWS_SUBNET_ID }} \
-            --iam-instance-profile Name=${{ secrets.AWS_INSTANCE_PROFILE }} \
-            --tag-specifications "ResourceType=instance,Tags=[
-              {Key=Name,Value=benchmark-pr${{ needs.validate-command.outputs.pr_number }}-${{ github.run_id }}},
-              {Key=CIRunId,Value=${{ github.run_id }}},
-              {Key=Role,Value=benchmark-server}
-            ]" \
-            --query 'Instances[0].InstanceId' --output text)
- 
-          echo "instance_id=$ID" >> $GITHUB_OUTPUT
-          aws ec2 wait instance-running --instance-ids $ID
-          IP=$(aws ec2 describe-instances --instance-ids $ID \
-               --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          aws ec2 start-instances \
+            --instance-ids ${{ secrets.BENCHMARK_INSTANCE_ID }}
+          aws ec2 wait instance-running \
+            --instance-ids ${{ secrets.BENCHMARK_INSTANCE_ID }}
+          
+          IP=$(aws ec2 describe-instances \
+              --instance-ids ${{ secrets.BENCHMARK_INSTANCE_ID }} \
+              --query 'Reservations[0].Instances[0].PublicIpAddress' \
+              --output text)
+          
+          echo "instance_id=${{ secrets.BENCHMARK_INSTANCE_ID }}" >> $GITHUB_OUTPUT
           echo "public_ip=$IP" >> $GITHUB_OUTPUT
-          echo "Benchmark Server → $ID / $IP"
+          echo "Benchmark Server → ${{ secrets.BENCHMARK_INSTANCE_ID }} / $IP"
  
       - name: Wait for SSH on both servers
         run: |
@@ -272,231 +265,231 @@ jobs:
               owner: context.repo.owner, repo: context.repo.repo, comment_id: sc.id, body,
             });
  
-  # ──────────────────────────────────────────────────────────
-  # JOB 2: Deploy Endee server on Server A from the PR branch
-  # ──────────────────────────────────────────────────────────
-  deploy-endee:
-    name: Deploy Endee
-    needs: [validate-command, provision-servers]
-    runs-on: ubuntu-latest
+  # # ──────────────────────────────────────────────────────────
+  # # JOB 2: Deploy Endee server on Server A from the PR branch
+  # # ──────────────────────────────────────────────────────────
+  # deploy-endee:
+  #   name: Deploy Endee
+  #   needs: [validate-command, provision-servers]
+  #   runs-on: ubuntu-latest
  
-    steps:
-      - name: Checkout PR commit
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.validate-command.outputs.head_sha }}
+  #   steps:
+  #     - name: Checkout PR commit
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: ${{ needs.validate-command.outputs.head_sha }}
  
-      - name: Setup SSH for Endee Server
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.ENDEE_PEM }}" > ~/.ssh/endee.pem
-          chmod 600 ~/.ssh/endee.pem
-          ssh-keyscan -H ${{ needs.provision-servers.outputs.endee_server_ip }} >> ~/.ssh/known_hosts
+  #     - name: Setup SSH for Endee Server
+  #       run: |
+  #         mkdir -p ~/.ssh
+  #         echo "${{ secrets.ENDEE_PEM }}" > ~/.ssh/endee.pem
+  #         chmod 600 ~/.ssh/endee.pem
+  #         ssh-keyscan -H ${{ needs.provision-servers.outputs.endee_server_ip }} >> ~/.ssh/known_hosts
  
-      - name: Bundle and transfer branch code → Endee Server
-        run: |
-          tar --exclude='.git' \
-              --exclude='node_modules' \
-              --exclude='__pycache__' \
-              --exclude='.venv' \
-              -czf /tmp/endee_bundle.tar.gz .
+  #     - name: Bundle and transfer branch code → Endee Server
+  #       run: |
+  #         tar --exclude='.git' \
+  #             --exclude='node_modules' \
+  #             --exclude='__pycache__' \
+  #             --exclude='.venv' \
+  #             -czf /tmp/endee_bundle.tar.gz .
  
-          scp -i ~/.ssh/a.pem /tmp/endee_bundle.tar.gz \
-            ec2-user@${{ needs.provision-servers.outputs.endee_server_ip }}:/opt/endee/bundle.tar.gz
+  #         scp -i ~/.ssh/a.pem /tmp/endee_bundle.tar.gz \
+  #           ec2-user@${{ needs.provision-servers.outputs.endee_server_ip }}:/opt/endee/bundle.tar.gz
  
-      - name: Extract, install, start Endee server
-        env:
-          ENDEE_SERVER_IP: ${{ needs.provision-servers.outputs.endee_server_ip }}
-          MODE:        ${{ needs.validate-command.outputs.mode }}
-        run: |
-          ssh -i ~/.ssh/endee.pem ec2-user@$ENDEE_SERVER_IP << ENDSSH
-            set -euo pipefail
-            cd /opt/endee
-            tar -xzf bundle.tar.gz && rm bundle.tar.gz
+  #     - name: Extract, install, start Endee server
+  #       env:
+  #         ENDEE_SERVER_IP: ${{ needs.provision-servers.outputs.endee_server_ip }}
+  #         MODE:        ${{ needs.validate-command.outputs.mode }}
+  #       run: |
+  #         ssh -i ~/.ssh/endee.pem ec2-user@$ENDEE_SERVER_IP << ENDSSH
+  #           set -euo pipefail
+  #           cd /opt/endee
+  #           tar -xzf bundle.tar.gz && rm bundle.tar.gz
  
-            python3 -m venv .venv
-            source .venv/bin/activate
-            [ -f requirements.txt ] && pip install -r requirements.txt -q
+  #           python3 -m venv .venv
+  #           source .venv/bin/activate
+  #           [ -f requirements.txt ] && pip install -r requirements.txt -q
  
-            # start_endee.sh should accept "dense", "hybrid"
-            # and configure the index type accordingly before starting
-            export ENDEE_MODE="${MODE}"
-            bash scripts/start_endee.sh "${MODE}"
-            echo "Endee started in [${MODE}] mode"
-          ENDSSH
+  #           # start_endee.sh should accept "dense", "hybrid"
+  #           # and configure the index type accordingly before starting
+  #           export ENDEE_MODE="${MODE}"
+  #           bash scripts/start_endee.sh "${MODE}"
+  #           echo "Endee started in [${MODE}] mode"
+  #         ENDSSH
  
-      - name: Update PR → Endee running
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const mode      = '${{ needs.validate-command.outputs.mode }}';
-            const sha       = '${{ needs.validate-command.outputs.head_sha }}'.slice(0,7);
-            const actor     = context.payload.comment.user.login;
-            const modeLabel = {dense:'Dense', hybrid:'Hybrid'}[mode];
-            const body = [
-              `## VectorDB Benchmark — ${modeLabel} — Running`,
-              ``,
-              `Triggered by @${actor} · Commit \`${sha}\``,
-              ``,
-              `| Step | Status |`,
-              `|------|--------|`,
-              `| Provision Servers    | Up         |`,
-              `| Deploy Endee Server  | Running    |`,
-              `| Run Benchmark        | In progress… |`,
-              `| Results              | Waiting    |`,
-              `| Teardown             | Waiting    |`,
-            ].join('\n');
-            const { data: cs } = await github.rest.issues.listComments({
-              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
-            });
-            const sc = cs.find(c => c.body.includes('VectorDB Benchmark —') && c.user.login === 'github-actions[bot]');
-            if (sc) await github.rest.issues.updateComment({
-              owner: context.repo.owner, repo: context.repo.repo, comment_id: sc.id, body,
-            });
+  #     - name: Update PR → Endee running
+  #       uses: actions/github-script@v7
+  #       with:
+  #         script: |
+  #           const mode      = '${{ needs.validate-command.outputs.mode }}';
+  #           const sha       = '${{ needs.validate-command.outputs.head_sha }}'.slice(0,7);
+  #           const actor     = context.payload.comment.user.login;
+  #           const modeLabel = {dense:'Dense', hybrid:'Hybrid'}[mode];
+  #           const body = [
+  #             `## VectorDB Benchmark — ${modeLabel} — Running`,
+  #             ``,
+  #             `Triggered by @${actor} · Commit \`${sha}\``,
+  #             ``,
+  #             `| Step | Status |`,
+  #             `|------|--------|`,
+  #             `| Provision Servers    | Up         |`,
+  #             `| Deploy Endee Server  | Running    |`,
+  #             `| Run Benchmark        | In progress… |`,
+  #             `| Results              | Waiting    |`,
+  #             `| Teardown             | Waiting    |`,
+  #           ].join('\n');
+  #           const { data: cs } = await github.rest.issues.listComments({
+  #             owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+  #           });
+  #           const sc = cs.find(c => c.body.includes('VectorDB Benchmark —') && c.user.login === 'github-actions[bot]');
+  #           if (sc) await github.rest.issues.updateComment({
+  #             owner: context.repo.owner, repo: context.repo.repo, comment_id: sc.id, body,
+  #           });
  
-  # ──────────────────────────────────────────────────────────
-  # JOB 3: Run benchmark on Server B with the chosen mode 
-  # ──────────────────────────────────────────────────────────
-  run-benchmark:
-    name: Run Benchmark
-    needs: [validate-command, provision-servers, deploy-endee]
-    runs-on: ubuntu-latest
+  # # ──────────────────────────────────────────────────────────
+  # # JOB 3: Run benchmark on Server B with the chosen mode 
+  # # ──────────────────────────────────────────────────────────
+  # run-benchmark:
+  #   name: Run Benchmark
+  #   needs: [validate-command, provision-servers, deploy-endee]
+  #   runs-on: ubuntu-latest
  
-    outputs:
-      passed: ${{ steps.run.outputs.passed }}
-      report: ${{ steps.run.outputs.report }}
+  #   outputs:
+  #     passed: ${{ steps.run.outputs.passed }}
+  #     report: ${{ steps.run.outputs.report }}
  
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.validate-command.outputs.head_sha }}
+  #   steps:
+  #     - name: Checkout
+  #       uses: actions/checkout@v4
+  #       with:
+  #         ref: ${{ needs.validate-command.outputs.head_sha }}
  
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region:            ${{ env.AWS_REGION }}
  
-      - name: Setup SSH for Benchmark Server
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.VECTORDBBENCH_SERVER_PEM }}" > ~/.ssh/b.pem
-          chmod 600 ~/.ssh/b.pem
-          ssh-keyscan -H ${{ needs.provision-servers.outputs.server_b_ip }} >> ~/.ssh/known_hosts
+  #     - name: Setup SSH for Benchmark Server
+  #       run: |
+  #         mkdir -p ~/.ssh
+  #         echo "${{ secrets.VECTORDBBENCH_SERVER_PEM }}" > ~/.ssh/b.pem
+  #         chmod 600 ~/.ssh/b.pem
+  #         ssh-keyscan -H ${{ needs.provision-servers.outputs.server_b_ip }} >> ~/.ssh/known_hosts
  
-      - name: Transfer benchmark suite → Benchmark Server
-        run: |
-          scp -i ~/.ssh/b.pem -r benchmark/ \
-            ec2-user@${{ needs.provision-servers.outputs.benchmark_server_ip }}:/opt/benchmark/
+  #     - name: Transfer benchmark suite → Benchmark Server
+  #       run: |
+  #         scp -i ~/.ssh/b.pem -r benchmark/ \
+  #           ec2-user@${{ needs.provision-servers.outputs.benchmark_server_ip }}:/opt/benchmark/
  
-      - name: Execute benchmark with mode=${{ needs.validate-command.outputs.mode }}
-        id: run
-        env:
-          BENCHMARK_SERVER_IP: ${{ needs.provision-servers.outputs.benchmark_server_ip }}
-          ENDEE_HOST:  ${{ needs.provision-servers.outputs.server_a_ip }}
-          MODE:        ${{ needs.validate-command.outputs.mode }}
-        run: |
-          ssh -i ~/.ssh/b.pem ec2-user@$BENCHMARK_SERVER_IP \
-            "ENDEE_HOST=$ENDEE_HOST BENCHMARK_MODE=$MODE bash /opt/benchmark/run_benchmark.sh" \
-            | tee /tmp/bench_output.txt
+  #     - name: Execute benchmark with mode=${{ needs.validate-command.outputs.mode }}
+  #       id: run
+  #       env:
+  #         BENCHMARK_SERVER_IP: ${{ needs.provision-servers.outputs.benchmark_server_ip }}
+  #         ENDEE_HOST:  ${{ needs.provision-servers.outputs.server_a_ip }}
+  #         MODE:        ${{ needs.validate-command.outputs.mode }}
+  #       run: |
+  #         ssh -i ~/.ssh/b.pem ec2-user@$BENCHMARK_SERVER_IP \
+  #           "ENDEE_HOST=$ENDEE_HOST BENCHMARK_MODE=$MODE bash /opt/benchmark/run_benchmark.sh" \
+  #           | tee /tmp/bench_output.txt
  
-          EXIT_CODE=${PIPESTATUS[0]}
+  #         EXIT_CODE=${PIPESTATUS[0]}
  
-          REPORT=$(python3 scripts/parse_benchmark_results.py /tmp/bench_output.txt)
-          {
-            echo "report<<__REPORT_EOF__"
-            echo "$REPORT"
-            echo "__REPORT_EOF__"
-          } >> $GITHUB_OUTPUT
+  #         REPORT=$(python3 scripts/parse_benchmark_results.py /tmp/bench_output.txt)
+  #         {
+  #           echo "report<<__REPORT_EOF__"
+  #           echo "$REPORT"
+  #           echo "__REPORT_EOF__"
+  #         } >> $GITHUB_OUTPUT
  
-          [ $EXIT_CODE -eq 0 ] \
-            && echo "passed=true"  >> $GITHUB_OUTPUT \
-            || echo "passed=false" >> $GITHUB_OUTPUT
+  #         [ $EXIT_CODE -eq 0 ] \
+  #           && echo "passed=true"  >> $GITHUB_OUTPUT \
+  #           || echo "passed=false" >> $GITHUB_OUTPUT
  
-      - name: Upload benchmark artifacts
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: benchmark-pr${{ needs.validate-command.outputs.pr_number }}-${{ needs.validate-command.outputs.mode }}-${{ github.run_id }}
-          path: /tmp/bench_output.txt
-          retention-days: 30
+  #     - name: Upload benchmark artifacts
+  #       uses: actions/upload-artifact@v4
+  #       if: always()
+  #       with:
+  #         name: benchmark-pr${{ needs.validate-command.outputs.pr_number }}-${{ needs.validate-command.outputs.mode }}-${{ github.run_id }}
+  #         path: /tmp/bench_output.txt
+  #         retention-days: 30
  
-  # ──────────────────────────────────────────────────────────
-  # JOB 4: Post final results to PR (always, even on failure)
-  # ──────────────────────────────────────────────────────────
-  report-results:
-    name: Post Results
-    needs: [validate-command, run-benchmark]
-    runs-on: ubuntu-latest
-    if: always()
+  # # ──────────────────────────────────────────────────────────
+  # # JOB 4: Post final results to PR (always, even on failure)
+  # # ──────────────────────────────────────────────────────────
+  # report-results:
+  #   name: Post Results
+  #   needs: [validate-command, run-benchmark]
+  #   runs-on: ubuntu-latest
+  #   if: always()
  
-    steps:
-      - name: Update PR comment with final results
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const mode      = '${{ needs.validate-command.outputs.mode }}';
-            const passed    = '${{ needs.run-benchmark.outputs.passed }}' === 'true';
-            const report    = `${{ needs.run-benchmark.outputs.report }}`;
-            const sha       = '${{ needs.validate-command.outputs.head_sha }}'.slice(0,7);
-            const actor     = context.payload.comment.user.login;
-            const runUrl    = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
-            const modeLabel = {dense:'Dense', hybrid:'Hybrid'}[mode];
-            const overallIcon = passed ? '🟢' : '🔴';
-            const overallLabel = passed ? 'PASSED' : 'FAILED';
+  #   steps:
+  #     - name: Update PR comment with final results
+  #       uses: actions/github-script@v7
+  #       with:
+  #         script: |
+  #           const mode      = '${{ needs.validate-command.outputs.mode }}';
+  #           const passed    = '${{ needs.run-benchmark.outputs.passed }}' === 'true';
+  #           const report    = `${{ needs.run-benchmark.outputs.report }}`;
+  #           const sha       = '${{ needs.validate-command.outputs.head_sha }}'.slice(0,7);
+  #           const actor     = context.payload.comment.user.login;
+  #           const runUrl    = `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`;
+  #           const modeLabel = {dense:'Dense', hybrid:'Hybrid'}[mode];
+  #           const overallIcon = passed ? '🟢' : '🔴';
+  #           const overallLabel = passed ? 'PASSED' : 'FAILED';
  
-            const body = [
-              `## ${overallIcon} VectorDB Benchmark — ${modeLabel} — ${overallLabel}`,
-              ``,
-              `Triggered by @${actor} · Commit \`${sha}\` · [Full logs](${runUrl})`,
-              ``,
-              `| Step | Status |`,
-              `|------|--------|`,
-              `| Provision Servers    | Done |`,
-              `| Deploy Endee Server  | Done |`,
-              `| Run Benchmark        | ${passed ? 'Passed' : 'Failed'} |`,
-              `| Results              | Below |`,
-              `| Teardown             | Terminated |`,
-              ``,
-              `### Benchmark Results — ${modeLabel}`,
-              `\`\`\``,
-              report || '(no output captured)',
-              `\`\`\``,
-              ``,
-              `---`,
-              `**Re-run or switch mode:** \`/benchmark dense\` · \`/benchmark hybrid\` · \`/benchmark all\``,
-            ].join('\n');
+  #           const body = [
+  #             `## ${overallIcon} VectorDB Benchmark — ${modeLabel} — ${overallLabel}`,
+  #             ``,
+  #             `Triggered by @${actor} · Commit \`${sha}\` · [Full logs](${runUrl})`,
+  #             ``,
+  #             `| Step | Status |`,
+  #             `|------|--------|`,
+  #             `| Provision Servers    | Done |`,
+  #             `| Deploy Endee Server  | Done |`,
+  #             `| Run Benchmark        | ${passed ? 'Passed' : 'Failed'} |`,
+  #             `| Results              | Below |`,
+  #             `| Teardown             | Terminated |`,
+  #             ``,
+  #             `### Benchmark Results — ${modeLabel}`,
+  #             `\`\`\``,
+  #             report || '(no output captured)',
+  #             `\`\`\``,
+  #             ``,
+  #             `---`,
+  #             `**Re-run or switch mode:** \`/benchmark dense\` · \`/benchmark hybrid\` · \`/benchmark all\``,
+  #           ].join('\n');
  
-            const { data: cs } = await github.rest.issues.listComments({
-              owner: context.repo.owner, repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
-            const sc = cs.find(c =>
-              c.body.includes('VectorDB Benchmark —') && c.user.login === 'github-actions[bot]'
-            );
-            if (sc) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner, repo: context.repo.repo,
-                comment_id: sc.id, body,
-              });
-            }
+  #           const { data: cs } = await github.rest.issues.listComments({
+  #             owner: context.repo.owner, repo: context.repo.repo,
+  #             issue_number: context.issue.number,
+  #           });
+  #           const sc = cs.find(c =>
+  #             c.body.includes('VectorDB Benchmark —') && c.user.login === 'github-actions[bot]'
+  #           );
+  #           if (sc) {
+  #             await github.rest.issues.updateComment({
+  #               owner: context.repo.owner, repo: context.repo.repo,
+  #               comment_id: sc.id, body,
+  #             });
+  #           }
  
-      - name: Set final commit status
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const passed = '${{ needs.run-benchmark.outputs.passed }}' === 'true';
-            const mode   = '${{ needs.validate-command.outputs.mode }}';
-            await github.rest.repos.createCommitStatus({
-              owner: context.repo.owner, repo: context.repo.repo,
-              sha:   '${{ needs.validate-command.outputs.head_sha }}',
-              state: passed ? 'success' : 'failure',
-              description: `${mode} benchmark ${passed ? 'passed' : 'failed'}`,
-              context: 'ci/vectordb-benchmark',
-              target_url: `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
-            });
+  #     - name: Set final commit status
+  #       uses: actions/github-script@v7
+  #       with:
+  #         script: |
+  #           const passed = '${{ needs.run-benchmark.outputs.passed }}' === 'true';
+  #           const mode   = '${{ needs.validate-command.outputs.mode }}';
+  #           await github.rest.repos.createCommitStatus({
+  #             owner: context.repo.owner, repo: context.repo.repo,
+  #             sha:   '${{ needs.validate-command.outputs.head_sha }}',
+  #             state: passed ? 'success' : 'failure',
+  #             description: `${mode} benchmark ${passed ? 'passed' : 'failed'}`,
+  #             context: 'ci/vectordb-benchmark',
+  #             target_url: `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+  #           });
  
   # # ──────────────────────────────────────────────────────────
   # # JOB 5: Teardown — ALWAYS runs, success or failure
