@@ -195,26 +195,20 @@ jobs:
       - name: Launch Endee Server
         id: start_endee_server
         run: |
-          ID=$(aws ec2 run-instances \
-            --image-id            ${{ secrets.AMI_ID }} \
-            --instance-type       ${{ secrets.ENDEE_SERVER_TYPE }} \
-            --key-name            ${{ secrets.ENDEE_PEM }} \
-            --security-group-ids  ${{ secrets.ENDEE_SERVER_GROUP_ID }} \
-            --subnet-id           ${{ secrets.AWS_SUBNET_ID }} \
-            --iam-instance-profile Name=${{ secrets.AWS_INSTANCE_PROFILE }} \
-            --tag-specifications "ResourceType=instance,Tags=[
-              {Key=Name,Value=endee-pr${{ needs.validate-command.outputs.pr_number }}-${{ github.run_id }}},
-              {Key=CIRunId,Value=${{ github.run_id }}},
-              {Key=Role,Value=endee-server}
-            ]" \
-            --query 'Instances[0].InstanceId' --output text)
- 
-          echo "instance_id=$ID" >> $GITHUB_OUTPUT
-          aws ec2 wait instance-running --instance-ids $ID
-          IP=$(aws ec2 describe-instances --instance-ids $ID \
-               --query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+          aws ec2 start-instances \
+            --instance-ids ${{ secrets.ENDEE_SERVER_INSTANCE_ID }}
+          aws ec2 wait instance-running \
+            --instance-ids ${{ secrets.ENDEE_SERVER_INSTANCE_ID }}
+
+          IP=$(aws ec2 describe-instances \
+              --instance-ids ${{ secrets.ENDEE_SERVER_INSTANCE_ID }} \
+              --query 'Reservations[0].Instances[0].PublicIpAddress' \
+              --output text)
+          
+          echo "instance_id=${{ secrets.ENDEE_SERVER_INSTANCE_ID }}" >> $GITHUB_OUTPUT
           echo "public_ip=$IP" >> $GITHUB_OUTPUT
-          echo "Endee Server → $ID / $IP"
+          echo "Endee Server → ${{ secrets.ENDEE_SERVER_INSTANCE_ID }} / $IP"
+          
  
       - name: Launch Benchmark Server
         id: start_benchmark_server
@@ -361,7 +355,7 @@ jobs:
             });
  
   # ──────────────────────────────────────────────────────────
-  # JOB 3: Run benchmark on Server B with the chosen mode
+  # JOB 3: Run benchmark on Server B with the chosen mode 
   # ──────────────────────────────────────────────────────────
   run-benchmark:
     name: Run Benchmark
