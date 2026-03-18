@@ -465,6 +465,10 @@ jobs:
             echo "BUILDING ENDEE IMAGE"
             docker build --ulimit nofile=100000:100000 --build-arg BUILD_ARCH="\$arc" --build-arg DEBUG=true -t endee-oss:latest -f ./infra/Dockerfile .
 
+            # DOWN THE EXISTING CONTAINER IF EXISTS
+            echo "DOWNING THE EXISTING CONTAINER IF EXISTS"
+            docker rm -f endee-server 2>/dev/null || true
+
             # RUN THE ENDEE CONTAINER
             echo "RUNNING ENDEE CONTAINER"
             docker run -d -p 8080:8080 -v endee-data:/data -e NDD_AUTH_TOKEN="" --name endee-server endee-oss:latest
