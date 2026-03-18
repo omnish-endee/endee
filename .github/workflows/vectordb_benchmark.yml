@@ -434,8 +434,8 @@ jobs:
             else
               echo "Docker is not installed"
               # INSTALL DOCKER 
-              sudo yum update -y 
-              sudo yum install -y docker 
+              sudo apt-get update -y 
+              sudo apt-get install -y docker.io
 
               # START DOCKER SERVICE 
               sudo systemctl start docker  
