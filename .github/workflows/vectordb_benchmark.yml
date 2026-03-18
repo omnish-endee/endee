@@ -465,7 +465,7 @@ jobs:
 
             # RUN THE INSTALL.SH SCRIPT
             echo "RUNNING INSTALL.SH SCRIPT"
-            ./install.sh --release --$arc
+            ./install.sh --release --\$arc
 
             # RUN THE RUN.SH SCRIPT
             echo "RUNNING RUN.SH SCRIPT"
@@ -473,7 +473,7 @@ jobs:
 
             # BUILD ENDEE IMAGE
             echo "BUILDING ENDEE IMAGE"
-            docker build --ulimit nofile=100000:100000 --build-arg BUILD_ARCH="$arc" --build-arg DEBUG=true -t endee-oss:latest -f ./infra/Dockerfile .
+            docker build --ulimit nofile=100000:100000 --build-arg BUILD_ARCH="\$arc" --build-arg DEBUG=true -t endee-oss:latest -f ./infra/Dockerfile .
 
             # RUN THE ENDEE CONTAINER
             echo "RUNNING ENDEE CONTAINER"
