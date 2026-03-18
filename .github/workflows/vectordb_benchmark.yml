@@ -8,7 +8,7 @@ on:
 
 
 # ONYLY ONE BENCHMARK RUN AT A TIME PER PR
-# IF SAME PR COMMENT UPDATED FROM BENCHMARK/DENSE TO BENCHMARK/HYBRID, CANCEL INPROGRESS RUN AND START UPDATED ONE 
+# IF SAME PR COMMENT UPDATED FROM BENCHMARK/DENSE TO BENCHMARK/HYBRID, CANCEL INPROGRESS RUN AND START UPDATED ONE  
 concurrency:
   group: vectordb-benchmark-pr${{ github.event.issue.number }}
   cancel-in-progress: true
@@ -229,20 +229,22 @@ jobs:
  
       - name: Wait for SSH on both servers
         run: |
+
+          echo "Creating PEM files for both hosts..." 
+          mkdir -p ~/.ssh 
+
+          echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > "${{ secrets.ENDEE_PEM }}"
+          chmod 400 "${{ secrets.ENDEE_PEM }}"
+          echo "Endee PEM file Created"
+
+          echo "${{ secrets.BENCHMARKING_SSH_PRIVATE_KEY }}" > "${{ secrets.BENCHMARKING_PEM }}"
+          chmod 400 "${{ secrets.BENCHMARKING_PEM }}"
+          echo "BENCHMARKING PEM file Created"
+
           ENDEE_PEM_FILE="$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
           BENCHMARKING_PEM_FILE="$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}"
           ENDEE_IP="${{ steps.start_endee_server.outputs.public_ip }}"
           BENCHMARKING_IP="${{ steps.start_benchmark_server.outputs.public_ip }}"
-
-          echo "Creating PEM files for both hosts..." 
-          mkdir -p ~/.ssh 
-          echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > "$ENDEE_PEM_FILE"
-          chmod 400 "$ENDEE_PEM_FILE"
-          echo "Endee PEM file Created"
-
-          echo "${{ secrets.BENCHMARKING_SSH_PRIVATE_KEY }}" > "$BENCHMARKING_PEM_FILE"
-          chmod 400 "$BENCHMARKING_PEM_FILE"
-          echo "BENCHMARKING PEM file Created"
 
           echo "Waiting for SSH on Endee Server..."
           ENDEE_SSH_READY=false
@@ -305,87 +307,185 @@ jobs:
               owner: context.repo.owner, repo: context.repo.repo, comment_id: sc.id, body,
             });
  
-  # # ──────────────────────────────────────────────────────────
-  # # JOB 2: Deploy Endee server on Server A from the PR branch
-  # # ──────────────────────────────────────────────────────────
-  # deploy-endee:
-  #   name: Deploy Endee
-  #   needs: [validate-command, provision-servers]
-  #   runs-on: ubuntu-latest
+  # ──────────────────────────────────────────────────────────
+  # JOB 2: Deploy Endee server on Server A from the PR branch
+  # ──────────────────────────────────────────────────────────
+  deploy-endee:
+    name: Deploy Endee
+    needs: [validate-command, provision-servers]
+    runs-on: ubuntu-latest
  
-  #   steps:
-  #     - name: Checkout PR commit
-  #       uses: actions/checkout@v4
-  #       with:
-  #         ref: ${{ needs.validate-command.outputs.head_sha }}
+    steps:
+      - name: Checkout PR commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-command.outputs.head_sha }}
  
-  #     - name: Setup SSH for Endee Server
-  #       run: |
-  #         mkdir -p ~/.ssh
-  #         echo "${{ secrets.ENDEE_PEM }}" > ~/.ssh/endee.pem
-  #         chmod 600 ~/.ssh/endee.pem
-  #         ssh-keyscan -H ${{ needs.provision-servers.outputs.endee_server_ip }} >> ~/.ssh/known_hosts
+      - name: Setup SSH for Endee Server
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > "$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
+          chmod 400 "$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
+          ssh-keyscan -H ${{ needs.provision-servers.outputs.endee_server_ip }} >> ~/.ssh/known_hosts
+
+          # ===============================================================================================
+          # WHY SSH-KEYSCAN?
+            # KNOWN-HOSTS FILE: It's a file on your machine that stores fingerprints of servers you've already trusted. IT IS @ ~/.ssh/known_hosts
+              # EXAMPLE:
+                # ~/.ssh/known_hosts
+                # 13.219.45.27 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTI...
+                # github.com   ssh-rsa AAAAB3NzaC1yc2EAAAABIwAAAQEAq2A...
+              # Once a server's fingerprint is in this file, SSH connects without asking.
+            # WHAT SSH-KEYSCAN DOES: It connects to the server, fetches its public key fingerprint, and prints it — without actually logging in
+              # EXAMPLE:
+              # ssh-keyscan -H 13.219.45.67
+              # 13.199.30.67 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTI...
+            # ssh-keyscan -H ${{ needs.provision-servers.outputs.endee_server_ip }} >> ~/.ssh/known_hosts
+                # ```
+
+                # Step by step:
+                # ```
+                # 1. EC2 instance starts → has an IP
+                # 2. ssh-keyscan connects to that IP → fetches its fingerprint
+                # 3. >> appends that fingerprint to known_hosts
+                # 4. Now when scp/ssh connects → fingerprint already trusted → no prompt
+              # -H : IT HASHED THE IP OF SERVER WE CONNECTED TO
+
+          # ===============================================================================================
+  
+      - name: Bundle and transfer branch code → Endee Server
+        run: |
+          # # WHY TAR+SCP?
+          #   GitHub Actions runner already has the code  ← actions/checkout fetched it
+          #         ↓
+          #   tar it up
+          #         ↓
+          #   scp to EC2 using SSH key we already have
+          #         ↓
+          #   EC2 extracts and runs it
+
+          # GITHUB RUNNER HAS ACCESS TO CODE AND LATEST COMMIT OF SOURCE BRANCH
+          # BUNDLE THE CODE INTO A TAR FILE AND TRANSFER IT TO THE SERVER
+
+          tar --exclude='.git' \
+              --exclude='node_modules' \
+              --exclude='__pycache__' \
+              --exclude='.venv' \
+              -czf /tmp/endee_bundle.tar.gz .
+
+          # TRANSFER THE BUNDLE TO THE SERVER
+          scp -i "$HOME/.ssh/${{ secrets.ENDEE_PEM }}" /tmp/endee_bundle.tar.gz \
+            "${{ secrets.ENDEE_USERNAME }}"@"${{ needs.provision-servers.outputs.endee_server_ip }}":/opt/endee/bundle.tar.gz
  
-  #     - name: Bundle and transfer branch code → Endee Server
-  #       run: |
-  #         tar --exclude='.git' \
-  #             --exclude='node_modules' \
-  #             --exclude='__pycache__' \
-  #             --exclude='.venv' \
-  #             -czf /tmp/endee_bundle.tar.gz .
+      - name: Extract, install, start Endee server
+        env:
+          ENDEE_SERVER_IP: ${{ needs.provision-servers.outputs.endee_server_ip }}
+          MODE:        ${{ needs.validate-command.outputs.mode }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: |
+          echo "SSH TO ENDEE SERVER"
+          ssh -i "$HOME/.ssh/${{ secrets.ENDEE_PEM }}" "${{ secrets.ENDEE_USERNAME }}"@"$ENDEE_SERVER_IP" << ENDSSH
+            echo
+            set -euo pipefail
+              # ===============================================================================================
+              # -e: exit immediately on error
+                # examples: 
+                  # without -e
+                    # rm /nonexistent/file    # fails silently
+                    # echo "still running"    # keeps going ← dangerous
+
+                    # # with -e
+                    # rm /nonexistent/file    # fails
+                    # echo "still running"    # NEVER REACHES HERE — script stops
+              # ------------------------------------------------------------------------------------------
+              # -u: treat unset variables as an error and exit immediately
+                # examples: 
+                    # # without -u
+                    # echo $TYPO_VAR    # prints empty string silently ← dangerous
+
+                    # # with -u
+                    # echo $TYPO_VAR    # ERROR: TYPO_VAR: unbound variable — script stops
+
+              # ------------------------------------------------------------------------------------------
+              # -o pipefail: return the exit status of the last command in a pipeline
+                # examples:
+                    # without pipefail
+                    # cat nonexistent_file | grep "something"
+                    # echo $?    # prints 0 (success) ← because grep succeeded even though cat failed
+
+                    # # with pipefail
+                    # cat nonexistent_file | grep "something"
+                    # echo $?    # prints 1 (failure) ← because cat failed 
+              # ------------------------------------------------------------------------------------------
+              # ===============================================================================================
+              
+            cd /opt/endee
+            tar -xzf bundle.tar.gz && rm bundle.tar.gz
+
+            # START ENDEE SERVER 
+            echo "CURRENT content: $(ls -al)"
+            cd $REPO_NAME
+            # CHECK IF DOCKER INSTALLED ON SERVER OR NOT IF NOT INSTALL THE DOCKER SERVER TO RUN WITHOUT SUDO 
+            # CHECK USING DOCKER BINARY FILES 
+            if command -v docker &>/dev/null; then
+              echo "Docker is already installed"
+            else
+              echo "Docker is not installed"
+              # INSTALL DOCKER 
+              sudo yum update -y 
+              sudo yum install -y docker 
+
+              # START DOCKER SERVICE 
+              sudo systemctl start docker  
+              sudo systemctl enable docker 
+
+              echo "DOCKER INSTALLED: $(docker --version)"
+            fi
+
+            # RUN WITHOUT SUDO — ADD username TO DOCKER GROUP
+            if groups ${{ secrets.ENDEE_USERNAME }} | grep -q docker; then
+              echo "${{ secrets.ENDEE_USERNAME }} already in docker group"
+            else
+              echo "Adding ${{ secrets.ENDEE_USERNAME }} to docker group..."
+              sudo usermod -aG docker ${{ secrets.ENDEE_USERNAME }}
+              echo "${{ secrets.ENDEE_USERNAME }} added to docker group"
+            fi
+
+            # APPLY GROUP CHANGE WITHOUT LOGOUT
+            newgrp docker << 'NEWGRP'
+              docker ps > /dev/null 2>&1 && echo "Docker running without sudo" || echo "Docker check failed"
+            NEWGRP
+            
+          ENDSSH
  
-  #         scp -i ~/.ssh/a.pem /tmp/endee_bundle.tar.gz \
-  #           ec2-user@${{ needs.provision-servers.outputs.endee_server_ip }}:/opt/endee/bundle.tar.gz
- 
-  #     - name: Extract, install, start Endee server
-  #       env:
-  #         ENDEE_SERVER_IP: ${{ needs.provision-servers.outputs.endee_server_ip }}
-  #         MODE:        ${{ needs.validate-command.outputs.mode }}
-  #       run: |
-  #         ssh -i ~/.ssh/endee.pem ec2-user@$ENDEE_SERVER_IP << ENDSSH
-  #           set -euo pipefail
-  #           cd /opt/endee
-  #           tar -xzf bundle.tar.gz && rm bundle.tar.gz
- 
-  #           python3 -m venv .venv
-  #           source .venv/bin/activate
-  #           [ -f requirements.txt ] && pip install -r requirements.txt -q
- 
-  #           # start_endee.sh should accept "dense", "hybrid"
-  #           # and configure the index type accordingly before starting
-  #           export ENDEE_MODE="${MODE}"
-  #           bash scripts/start_endee.sh "${MODE}"
-  #           echo "Endee started in [${MODE}] mode"
-  #         ENDSSH
- 
-  #     - name: Update PR → Endee running
-  #       uses: actions/github-script@v7
-  #       with:
-  #         script: |
-  #           const mode      = '${{ needs.validate-command.outputs.mode }}';
-  #           const sha       = '${{ needs.validate-command.outputs.head_sha }}'.slice(0,7);
-  #           const actor     = context.payload.comment.user.login;
-  #           const modeLabel = {dense:'Dense', hybrid:'Hybrid'}[mode];
-  #           const body = [
-  #             `## VectorDB Benchmark — ${modeLabel} — Running`,
-  #             ``,
-  #             `Triggered by @${actor} · Commit \`${sha}\``,
-  #             ``,
-  #             `| Step | Status |`,
-  #             `|------|--------|`,
-  #             `| Provision Servers    | Up         |`,
-  #             `| Deploy Endee Server  | Running    |`,
-  #             `| Run Benchmark        | In progress… |`,
-  #             `| Results              | Waiting    |`,
-  #             `| Teardown             | Waiting    |`,
-  #           ].join('\n');
-  #           const { data: cs } = await github.rest.issues.listComments({
-  #             owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
-  #           });
-  #           const sc = cs.find(c => c.body.includes('VectorDB Benchmark —') && c.user.login === 'github-actions[bot]');
-  #           if (sc) await github.rest.issues.updateComment({
-  #             owner: context.repo.owner, repo: context.repo.repo, comment_id: sc.id, body,
-  #           });
+      - name: Update PR Comment → Endee running
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const mode      = '${{ needs.validate-command.outputs.mode }}';
+            const sha       = '${{ needs.validate-command.outputs.head_sha }}'.slice(0,7);
+            const actor     = context.payload.comment.user.login;
+            const modeLabel = {dense:'Dense', hybrid:'Hybrid'}[mode];
+            const body = [
+              `## VectorDB Benchmark — ${modeLabel} — Running`,
+              ``,
+              `Triggered by @${actor} · Commit \`${sha}\``,
+              ``,
+              `| Step | Status |`,
+              `|------|--------|`,
+              `| Provision Servers    | Up         |`,
+              `| Deploy Endee Server  | Running    |`,
+              `| Run Benchmark        | In progress… |`,
+              `| Results              | Waiting    |`,
+              `| Teardown             | Waiting    |`,
+            ].join('\n');
+            const { data: cs } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const sc = cs.find(c => c.body.includes('VectorDB Benchmark —') && c.user.login === 'github-actions[bot]');
+            if (sc) await github.rest.issues.updateComment({
+              owner: context.repo.owner, repo: context.repo.repo, comment_id: sc.id, body,
+            });
  
   # # ──────────────────────────────────────────────────────────
   # # JOB 3: Run benchmark on Server B with the chosen mode 
