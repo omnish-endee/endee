@@ -426,7 +426,7 @@ jobs:
             tar -xzf bundle.tar.gz && rm bundle.tar.gz
 
             # START ENDEE SERVER 
-            echo "CURRENT content: $(ls -al)"
+            # echo "CURRENT content: $(ls -al)"
             # CHECK IF DOCKER INSTALLED ON SERVER OR NOT IF NOT INSTALL THE DOCKER SERVER TO RUN WITHOUT SUDO 
             # CHECK USING DOCKER BINARY FILES 
             if command -v docker &>/dev/null; then
@@ -457,7 +457,7 @@ jobs:
             sg docker -c "docker ps >  /dev/null 2>&1 && echo 'Docker running without sudo' || echo 'Docker check failed'"
 
             # GET THE ARCHITECTURE OF THE SERVER
-            arc=grep -o 'avx2\|avx512\|neon\|sve2' /proc/cpuinfo | sort -u 
+            arc=$(grep -o 'avx2\|avx512\|neon\|sve2' /proc/cpuinfo | sort -u)
             echo "ARCHITECTURE: $arc"
 
             # BUILD ENDEE IMAGE
