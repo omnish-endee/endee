@@ -459,17 +459,7 @@ jobs:
             arc=\$(grep -o 'avx2\|avx512\|neon\|sve2' /proc/cpuinfo | sort -u)
             echo "ARCHITECTURE: \$arc"
 
-            # MAKE ./install.sh EXECUTABLE
-            chmod +x ./install.sh
-            chmod +x ./run.sh
-
-            # RUN THE INSTALL.SH SCRIPT
-            echo "RUNNING INSTALL.SH SCRIPT"
-            ./install.sh --release --\$arc
-
-            # RUN THE RUN.SH SCRIPT
-            echo "RUNNING RUN.SH SCRIPT"
-            ./run.sh
+            
 
             # BUILD ENDEE IMAGE
             echo "BUILDING ENDEE IMAGE"
