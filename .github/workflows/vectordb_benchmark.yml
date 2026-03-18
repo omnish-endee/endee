@@ -372,10 +372,12 @@ jobs:
               --exclude='__pycache__' \
               --exclude='.venv' \
               -czf /tmp/endee_bundle.tar.gz .
+          
+
 
           # TRANSFER THE BUNDLE TO THE SERVER
           scp -i "$HOME/.ssh/${{ secrets.ENDEE_PEM }}" /tmp/endee_bundle.tar.gz \
-            "${{ secrets.ENDEE_USERNAME }}"@"${{ needs.provision-servers.outputs.endee_server_ip }}":/opt/endee/bundle.tar.gz
+            "${{ secrets.ENDEE_USERNAME }}"@"${{ needs.provision-servers.outputs.endee_server_ip }}":/opt/bundle.tar.gz
  
       - name: Extract, install, start Endee server
         env:
