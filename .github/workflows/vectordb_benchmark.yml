@@ -454,9 +454,7 @@ jobs:
             fi
 
             # APPLY GROUP CHANGE WITHOUT LOGOUT
-            newgrp docker << 'NEWGRP'
-              docker ps > /dev/null 2>&1 && echo "Docker running without sudo" || echo "Docker check failed"
-            NEWGRP
+            sg docker -c "docker ps >  /dev/null 2>&1 && echo 'Docker running without sudo' || echo 'Docker check failed'"
             
           ENDSSH
  
