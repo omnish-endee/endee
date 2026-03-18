@@ -467,7 +467,7 @@ jobs:
 
             # RUN THE ENDEE CONTAINER
             echo "RUNNING ENDEE CONTAINER"
-            docker run -p 8080:8080 -v endee-data:/data -e NDD_AUTH_TOKEN="" --name endee-server endee-oss:latest
+            docker run -d -p 8080:8080 -v endee-data:/data -e NDD_AUTH_TOKEN="" --name endee-server endee-oss:latest
 
             # CHECK IF THE CONTAINER IS RUNNING
             echo "CHECKING IF THE CONTAINER IS RUNNING"
