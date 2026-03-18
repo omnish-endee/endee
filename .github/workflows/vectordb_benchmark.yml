@@ -455,6 +455,30 @@ jobs:
 
             # APPLY GROUP CHANGE WITHOUT LOGOUT
             sg docker -c "docker ps >  /dev/null 2>&1 && echo 'Docker running without sudo' || echo 'Docker check failed'"
+
+            # GET THE ARCHITECTURE OF THE SERVER
+            arc=grep -o 'avx2\|avx512\|neon\|sve2' /proc/cpuinfo | sort -u 
+            echo "ARCHITECTURE: $arc"
+
+            # BUILD ENDEE IMAGE
+            echo "BUILDING ENDEE IMAGE"
+            docker build --ulimit nofile=100000:100000 --build-arg BUILD_ARCH="$arc" --build-arg DEBUG=true -t endee-oss:latest -f ./infra/Dockerfile .
+
+            # RUN THE ENDEE CONTAINER
+            echo "RUNNING ENDEE CONTAINER"
+            docker run -p 8080:8080 -v endee-data:/data -e NDD_AUTH_TOKEN="" --name endee-server endee-oss:latest
+
+            # CHECK IF THE CONTAINER IS RUNNING
+            echo "CHECKING IF THE CONTAINER IS RUNNING"
+            if docker ps | grep -q endee-server; then
+              echo "ENDEE CONTAINER IS RUNNING"
+            else
+              echo "ENDEE CONTAINER IS NOT RUNNING"
+              exit 1
+            fi
+
+
+
             
           ENDSSH
  
