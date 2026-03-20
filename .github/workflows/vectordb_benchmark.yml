@@ -601,12 +601,11 @@ jobs:
                 --token "BENCHMARKING" \
                 --region location \
                 --base-url "http://$ENDEE_IP:8080/api/v1" \
-                --index-name test_index_name \
-                --task-label "test_index_name" \
+                --index-name test_index_name2 \
+                --task-label "test_index_name2" \
                 --m 16 \
                 --ef-con 128 \
                 --ef-search 128 \
-                --space-type cosine \
                 --precision float32 \
                 --version 1 \
                 --case-type Performance1536D50K \
