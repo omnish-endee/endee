@@ -601,8 +601,8 @@ jobs:
                 --token "BENCHMARKING" \
                 --region location \
                 --base-url "http://$ENDEE_IP:8080/api/v1" \
-                --index-name test_index_name2 \
-                --task-label "test_index_name2" \
+                --index-name index1 \
+                --task-label "index1" \
                 --m 16 \
                 --ef-con 128 \
                 --ef-search 128 \
@@ -617,7 +617,5 @@ jobs:
                 --load \
                 --search-concurrent \
                 --search-serial
-
-            echo "BENCHMARK COMPLETED"
 
           ENDSSH
