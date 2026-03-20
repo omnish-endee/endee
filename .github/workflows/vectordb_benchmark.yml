@@ -516,75 +516,108 @@ jobs:
               owner: context.repo.owner, repo: context.repo.repo, comment_id: sc.id, body,
             });
  
-  # # ──────────────────────────────────────────────────────────
-  # # JOB 3: Run benchmark on Server B with the chosen mode 
-  # # ──────────────────────────────────────────────────────────
-  # run-benchmark:
-  #   name: Run Benchmark
-  #   needs: [validate-command, provision-servers, deploy-endee]
-  #   runs-on: ubuntu-latest
+  # ──────────────────────────────────────────────────────────
+  # JOB 3: Run benchmark on Server B with the chosen mode 
+  # ──────────────────────────────────────────────────────────
+  run-benchmark:
+    name: Run Benchmark
+    needs: [validate-command, provision-servers, deploy-endee]
+    runs-on: ubuntu-latest
  
-  #   outputs:
-  #     passed: ${{ steps.run.outputs.passed }}
-  #     report: ${{ steps.run.outputs.report }}
+    outputs:
+      passed: ${{ steps.run.outputs.passed }}
+      report: ${{ steps.run.outputs.report }}
  
-  #   steps:
-  #     - name: Checkout
-  #       uses: actions/checkout@v4
-  #       with:
-  #         ref: ${{ needs.validate-command.outputs.head_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-command.outputs.head_sha }}
  
-  #     - name: Configure AWS credentials
-  #       uses: aws-actions/configure-aws-credentials@v4
-  #       with:
-  #         aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
-  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  #         aws-region:            ${{ env.AWS_REGION }}
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ env.AWS_REGION }}
  
-  #     - name: Setup SSH for Benchmark Server
-  #       run: |
-  #         mkdir -p ~/.ssh
-  #         echo "${{ secrets.VECTORDBBENCH_SERVER_PEM }}" > ~/.ssh/b.pem
-  #         chmod 600 ~/.ssh/b.pem
-  #         ssh-keyscan -H ${{ needs.provision-servers.outputs.server_b_ip }} >> ~/.ssh/known_hosts
+      - name: Setup SSH for Benchmark Server
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.BENCHMARKING_SSH_PRIVATE_KEY }}" > "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}"
+          chmod 400 "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}"
+          ssh-keyscan -H ${{ needs.provision-servers.outputs.benchmark_server_ip }} >> "$HOME/.ssh/known_hosts"
  
-  #     - name: Transfer benchmark suite → Benchmark Server
-  #       run: |
-  #         scp -i ~/.ssh/b.pem -r benchmark/ \
-  #           ec2-user@${{ needs.provision-servers.outputs.benchmark_server_ip }}:/opt/benchmark/
- 
-  #     - name: Execute benchmark with mode=${{ needs.validate-command.outputs.mode }}
-  #       id: run
-  #       env:
-  #         BENCHMARK_SERVER_IP: ${{ needs.provision-servers.outputs.benchmark_server_ip }}
-  #         ENDEE_HOST:  ${{ needs.provision-servers.outputs.server_a_ip }}
-  #         MODE:        ${{ needs.validate-command.outputs.mode }}
-  #       run: |
-  #         ssh -i ~/.ssh/b.pem ec2-user@$BENCHMARK_SERVER_IP \
-  #           "ENDEE_HOST=$ENDEE_HOST BENCHMARK_MODE=$MODE bash /opt/benchmark/run_benchmark.sh" \
-  #           | tee /tmp/bench_output.txt
- 
-  #         EXIT_CODE=${PIPESTATUS[0]}
- 
-  #         REPORT=$(python3 scripts/parse_benchmark_results.py /tmp/bench_output.txt)
-  #         {
-  #           echo "report<<__REPORT_EOF__"
-  #           echo "$REPORT"
-  #           echo "__REPORT_EOF__"
-  #         } >> $GITHUB_OUTPUT
- 
-  #         [ $EXIT_CODE -eq 0 ] \
-  #           && echo "passed=true"  >> $GITHUB_OUTPUT \
-  #           || echo "passed=false" >> $GITHUB_OUTPUT
- 
-  #     - name: Upload benchmark artifacts
-  #       uses: actions/upload-artifact@v4
-  #       if: always()
-  #       with:
-  #         name: benchmark-pr${{ needs.validate-command.outputs.pr_number }}-${{ needs.validate-command.outputs.mode }}-${{ github.run_id }}
-  #         path: /tmp/bench_output.txt
-  #         retention-days: 30
- 
+      - name: Transfer benchmark suite → Benchmark Server
+        run: |
+          ENDEE_IP="${{ needs.provision-servers.outputs.endee_server_ip }}"
+          BENCHMARK_SERVER_IP="${{ needs.provision-servers.outputs.benchmark_server_ip }}"
+          
+          # SSH TO BENCHMARK SERVER AND CHECK IF BENCHMARK DIRECTORY IS PRESENT IF NOT CREATE IT AND CHANGE IT'S OWNER AS WELL
+          ssh -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" "${{ secrets.BENCHMARKING_USERNAME }}"@"${{ needs.provision-servers.outputs.benchmark_server_ip }}" "sudo mkdir -p /opt/benchmark && sudo chown "${{ secrets.BENCHMARKING_USERNAME }}":"${{ secrets.BENCHMARKING_USERNAME }}" /opt/benchmark" << ENDSSH
+            
+            # CHECK HTTP PORTS ON BOTH SERVERS AND MAKE SURE THEY ARE OPEN
+            # CHECK IF BENCHMARK SERVER IS REACHING TO ENDEE SERVER HTTP PORT 8080
+            # GET INTO THE BENCHMARK DIRECTORY
+            
+            # ACTIVATE PYTHON ENVIRONMENT
+            source "/opt/benchmark/VectorDBBench/venv/bin/activate"
+
+            # CHECK IF BENCHMARK SERVER CAN REACH ENDEE SERVER ON PORT 8080
+              echo "CHECKING CONNECTIVITY TO ENDEE SERVER: \$ENDEE_IP:8080"
+              if ! nc -zv -w 5 $ENDEE_IP 8080 2>&1; then
+                echo "ENDEE SERVER PORT 8080 NOT REACHABLE"
+                exit 1
+              fi
+              echo "ENDEE SERVER IS REACHABLE ON PORT 8080"
+
+            cd /opt/benchmark
+            
+            # INSTALL GIT
+            sudo apt-get update -y 
+            sudo apt-get install -y git-all
+
+            # ============= RUN BENCHMARK SETUP STEPS TO SETUP BENCHMARKING ===================
+              # OS DETECTION
+              # PYTHON3.11 INSTALLATION BASED ON OS 
+              # CLONE ENDEE GITHUB REPO 
+              # CHECKOUT ENDEE BRANCH 
+              # CREATE VIRTUAL ENVIRONMENT 
+              # INSTALL ALL DEPENDENCIES 
+              # ACTIVATE IT  
+            # ====================================================================================
+
+            # RUN THE SETUP SCRIPT
+            python3 "/opt/benchmark/setup.py"
+
+
+
+            # RUN BENCHMARK WITH THE CHOSEN MODE
+            NUM_PER_BATCH=1000 DATASET_LOCAL_DIR="/opt/benchmark/parquet_files_holder" \
+              vectordbbench endee \
+                --token "" \
+                --region location \
+                --base-url "http://\$ENDEE_IP:8080/api/v1" \
+                --index-name test_index_name \
+                --task-label "test_index_name" \
+                --m 16 \
+                --ef-con 128 \
+                --ef-search 128 \
+                --space-type cosine \
+                --precision float32 \
+                --version 1 \
+                --case-type Performance1536D50K \
+                --k 30 \
+                --num-concurrency "16" \
+                --concurrency-duration 30 \
+                --concurrency-timeout 3600 \
+                --drop-old \
+                --load \
+                --search-concurrent \
+                --search-serial
+
+          ENDSSH  
+          
   # # ──────────────────────────────────────────────────────────
   # # JOB 4: Post final results to PR (always, even on failure)
   # # ──────────────────────────────────────────────────────────
