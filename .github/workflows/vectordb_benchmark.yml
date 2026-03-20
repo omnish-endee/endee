@@ -554,14 +554,14 @@ jobs:
           BENCHMARK_SERVER_IP="${{ needs.provision-servers.outputs.benchmark_server_ip }}"
 
           # SSH TO BENCHMARK SERVER AND CHECK IF BENCHMARK DIRECTORY IS PRESENT IF NOT CREATE IT AND CHANGE IT'S OWNER AS WELL
-          ssh -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" "${{ secrets.BENCHMARKING_USERNAME }}"@"${{ needs.provision-servers.outputs.benchmark_server_ip }}" "sudo mkdir -p /opt/benchmark && sudo chown "${{ secrets.BENCHMARKING_USERNAME }}":"${{ secrets.BENCHMARKING_USERNAME }}" /opt/benchmark" << ENDSSH
+          ssh -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" "${{ secrets.BENCHMARKING_USERNAME }}"@"${{ needs.provision-servers.outputs.benchmark_server_ip }}" "sudo mkdir -p /opt/benchmark && sudo chown "${{ secrets.BENCHMARKING_USERNAME }}":"${{ secrets.BENCHMARKING_USERNAME }}" /opt/benchmark"
+
+          ssh -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" "${{ secrets.BENCHMARKING_USERNAME }}"@"${{ needs.provision-servers.outputs.benchmark_server_ip }}" << ENDSSH
             
             # CHECK HTTP PORTS ON BOTH SERVERS AND MAKE SURE THEY ARE OPEN
             # CHECK IF BENCHMARK SERVER IS REACHING TO ENDEE SERVER HTTP PORT 8080
             # GET INTO THE BENCHMARK DIRECTORY
             
-            # ACTIVATE PYTHON ENVIRONMENT
-            source "/opt/benchmark/VectorDBBench/venv/bin/activate"
 
             # CHECK IF BENCHMARK SERVER CAN REACH ENDEE SERVER ON PORT 8080
               echo "CHECKING CONNECTIVITY TO ENDEE SERVER: \$ENDEE_IP:8080"
@@ -590,6 +590,8 @@ jobs:
             # RUN THE SETUP SCRIPT
             python3 "/opt/benchmark/setup.py"
 
+            # ACTIVATE PYTHON ENVIRONMENT
+            source "/opt/benchmark/VectorDBBench/venv/bin/activate"
 
 
             # RUN BENCHMARK WITH THE CHOSEN MODE
