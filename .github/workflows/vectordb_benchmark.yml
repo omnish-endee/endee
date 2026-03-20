@@ -8,7 +8,7 @@ on:
 
 
 # ONYLY ONE BENCHMARK RUN AT A TIME PER PR
-# IF SAME PR COMMENT UPDATED FROM BENCHMARK/DENSE TO BENCHMARK/HYBRID, CANCEL INPROGRESS RUN AND START UPDATED ONE    
+# IF SAME PR COMMENT UPDATED FROM BENCHMARK/DENSE TO BENCHMARK/HYBRID, CANCEL INPROGRESS RUN AND START UPDATED ONE     
 concurrency:
   group: vectordb-benchmark-pr${{ github.event.issue.number }}
   cancel-in-progress: true
@@ -552,7 +552,7 @@ jobs:
         run: |
           ENDEE_IP="${{ needs.provision-servers.outputs.endee_server_ip }}"
           BENCHMARK_SERVER_IP="${{ needs.provision-servers.outputs.benchmark_server_ip }}"
-          
+
           # SSH TO BENCHMARK SERVER AND CHECK IF BENCHMARK DIRECTORY IS PRESENT IF NOT CREATE IT AND CHANGE IT'S OWNER AS WELL
           ssh -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" "${{ secrets.BENCHMARKING_USERNAME }}"@"${{ needs.provision-servers.outputs.benchmark_server_ip }}" "sudo mkdir -p /opt/benchmark && sudo chown "${{ secrets.BENCHMARKING_USERNAME }}":"${{ secrets.BENCHMARKING_USERNAME }}" /opt/benchmark" << ENDSSH
             
