@@ -564,7 +564,7 @@ jobs:
             
 
             # CHECK IF BENCHMARK SERVER CAN REACH ENDEE SERVER ON PORT 8080
-              echo "CHECKING CONNECTIVITY TO ENDEE SERVER: \$ENDEE_IP:8080"
+              echo "CHECKING CONNECTIVITY TO ENDEE SERVER: $ENDEE_IP:8080"
               if ! nc -zv -w 5 $ENDEE_IP 8080 2>&1; then
                 echo "ENDEE SERVER PORT 8080 NOT REACHABLE"
                 exit 1
@@ -600,7 +600,7 @@ jobs:
               vectordbbench endee \
                 --token "BENCHMARKING" \
                 --region location \
-                --base-url "http://\$ENDEE_IP:8080/api/v1" \
+                --base-url "http://$ENDEE_IP:8080/api/v1" \
                 --index-name test_index_name \
                 --task-label "test_index_name" \
                 --m 16 \
