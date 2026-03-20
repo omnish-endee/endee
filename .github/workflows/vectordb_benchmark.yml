@@ -598,7 +598,7 @@ jobs:
             echo "RUNNING BENCHMARK WITH THE CHOSEN MODE"
             NUM_PER_BATCH=1000 DATASET_LOCAL_DIR="/opt/benchmark/parquet_files_holder" \
               vectordbbench endee \
-                --token "" \
+                --token "BENCHMARKING" \
                 --region location \
                 --base-url "http://\$ENDEE_IP:8080/api/v1" \
                 --index-name test_index_name \
