@@ -611,7 +611,7 @@ jobs:
                 --version 1 \
                 --case-type Performance1536D50K \
                 --k 30 \
-                --num-concurrency "16" \
+                --num-concurrency "1" \
                 --concurrency-duration 30 \
                 --concurrency-timeout 3600 \
                 --drop-old \
