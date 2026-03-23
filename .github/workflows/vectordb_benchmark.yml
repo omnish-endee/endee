@@ -750,7 +750,7 @@ jobs:
             // ── 3. FINAL PASS/FAIL DECISION ──────────────────────────
             // FAIL if: job itself failed OR no file found OR all metrics are zero
             const passed = jobSucceeded && found && !metricsAllZero && !parseError;
-            const statusEmoji = passed ? '🟢' : '🔴';
+            const statusEmoji = passed ? '' : '';
             const statusLabel = passed ? 'Passed' : 'Failed';
 
             // ── 4. BUILD METRICS TABLE ────────────────────────────────
@@ -788,7 +788,7 @@ jobs:
 
             // ── 6. BUILD FINAL COMMENT ───────────────────────────────
             const body = [
-              `## VectorDB Benchmark — ${mode} — ${statusEmoji} ${statusLabel}`,
+              `## VectorDB Benchmark — ${mode} —  ${statusLabel}`,
               ``,
               `Triggered by @${actor} · Commit \`${sha}\``,
               ``,
@@ -796,7 +796,7 @@ jobs:
               `|---------------------|--------|`,
               `| Provision Servers   | Up      |`,
               `| Deploy Endee Server | Running |`,
-              `| Run Benchmark       | ${statusEmoji} ${statusLabel} |`,
+              `| Run Benchmark       | ${statusLabel} |`,
               `| Results             | ${passed ? 'Below' : 'See reason below'} |`,
               failReason,
               metricsTable,
