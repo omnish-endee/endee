@@ -674,7 +674,7 @@ jobs:
       - name: Fetch Latest Result JSON from Benchmark Server 
         id: fetch_result 
         run: | 
-          BENCHMARK_IP="${{ needs.provision-servers.outputs.benchmark_server_id }}"
+          BENCHMARK_IP="${{ needs.provision-servers.outputs.benchmark_server_ip }}"
           RESULT_DIR="/opt/benchmark/VectorDBBench/vectordb_bench/results/Endee"
 
           # FIND THE LATEST RESULT FILE ON THE SERVER  
@@ -683,14 +683,14 @@ jobs:
           # ECHO LATEST RESULT 
           echo "LATEST_RESULT_FILE=$LATEST_RESULT_FILE" >> $GITHUB_OUTPUT 
 
-          if [ -z "$LATEST_FILE" ]; then
+          if [ -z "$LATEST_RESULT_FILE" ]; then
             echo "NO RESULT FILE FOUND"
             echo "found=false" >> $GITHUB_OUTPUT
           else
             # SCP THE FILE BACK TO RUNNER
             mkdir -p /tmp/benchmark_results
             scp -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" \
-              "${{ secrets.BENCHMARKING_USERNAME }}"@"$BENCHMARK_IP":"$LATEST_FILE" \
+              "${{ secrets.BENCHMARKING_USERNAME }}"@"$BENCHMARK_IP":"$LATEST_RESULT_FILE" \
               /tmp/benchmark_results/result.json
             
             echo "File fetched successfully"
