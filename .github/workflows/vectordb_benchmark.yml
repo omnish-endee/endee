@@ -1,6 +1,6 @@
 name: VectorDB - Run Benchmark
 
-# ============ TRIGGER: PR COMMENT CONTAINING /benchmark ===================
+# ============ TRIGGER: PR COMMENT CONTAINING /benchmark =================== 
 on:
   issue_comment:
     types: [ created ]
