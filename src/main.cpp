@@ -181,6 +181,7 @@ bool file_exists(const std::string& path) {
 
 int main(int argc, char** argv) {
 
+	printf("XXXXXXXXXXXX PRINTING STUFF XXXXXXXXXXXX\n");
     if(!is_cpu_compatible()) {
         printf("CPU is not compatible. Can't run Endee\n");
         return 0;
