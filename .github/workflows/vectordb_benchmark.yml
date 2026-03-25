@@ -596,7 +596,7 @@ jobs:
           # TRANSFER THE SETUP PYTHON FILE TO THE BENCHMARK SERVER
           scp -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" \
             ".github/workflows/benchmark_dense_setup.py" \
-            "${{ secrets.BENCHMARKING_USERNAME }}"@"$BENCHMARK_SERVER_IP":"\$HOME/benchmark/benchmark_dense_setup.py"
+            "${{ secrets.BENCHMARKING_USERNAME }}"@"$BENCHMARK_SERVER_IP":"$HOME/benchmark/benchmark_dense_setup.py"
 
           # SSH TO BENCHMARK SERVER
           ssh -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" \
