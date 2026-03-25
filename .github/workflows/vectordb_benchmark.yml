@@ -1,4 +1,4 @@
-name: VectorDB - Run Benchmark
+name: VectorDB - Run Correctness Benchmark
 
 # ============ TRIGGER: PR COMMENT CONTAINING /benchmark =================== 
 on:
@@ -44,7 +44,7 @@ jobs:
         with:
           script: | 
             const body = context.payload.comment.body.trim();
-            const match = body.match(/\/benchmark\s+(dense|hybrid|all)/i);
+            const match = body.match(/\/correctness_benchmarking\s+(dense|hybrid|sparse)/i);
 
             // IF NO MATCH, COMMENT IS PLAIN ISSUE COMMENT
             if (!match) {
@@ -52,6 +52,7 @@ jobs:
                 core.info('No Valid /benchmark <mode> found - skipping');
                 return;
               }
+            // MODE CONTAINS THE TYPE OF CORRECTNESS BENCHMARKING TO BE RUN THAT IS DENSE, HYBRID, OR SPARSE
             const mode = match[1].toLowerCase();
             core.setOutput('mode', mode);
 
@@ -526,7 +527,7 @@ jobs:
  
     outputs:
       passed: ${{ steps.run.outputs.passed }}
-      report: ${{ steps.run.outputs.report }}
+      report: ${{ steps.run.outputs.report }}f
  
     steps:
       - name: Checkout
@@ -555,7 +556,7 @@ jobs:
             ServerAliveCountMax 60
           EOF
  
-      - name: Transfer benchmark suite → Benchmark Server
+      - name: Basic Benchmark Server Setup and Validation
         run: |
           ENDEE_IP="${{ needs.provision-servers.outputs.endee_server_ip }}"
           BENCHMARK_SERVER_IP="${{ needs.provision-servers.outputs.benchmark_server_ip }}"
@@ -583,16 +584,15 @@ jobs:
             # INSTALL GIT
             sudo apt-get update -y 
             sudo apt-get install -y git-all
+          
+          ENDSSH
 
 
+      - name: Dense Benchmarking 
+        if: needs.validate-command.outputs.mode == 'dense'
+        run: |
+            # ============================================ DENSE TESTING SETUP ============================================
 
-
-
-
-
-
-            # ============================================ ENDEE DENSE TESTING SETUP ============================================
-            # ============= RUN DENSE BENCHMARK SETUP STEPS TO SETUP BENCHMARKING ===================
               # OS DETECTION
               # PYTHON3.11 INSTALLATION BASED ON OS 
               # CLONE ENDEE GITHUB REPO 
@@ -602,67 +602,76 @@ jobs:
               # ACTIVATE IT  
             # ====================================================================================
 
-            # RUN THE SETUP SCRIPT
-            python3 "/opt/benchmark/setup.py"
+            # TRANSFER THE SETUP PYTHON FILE TO THE BENCHMARK SERVER
+            scp -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" "benchmark_dense_setup.py" "${{ secrets.BENCHMARKING_USERNAME }}"@"${{ needs.provision-servers.outputs.benchmark_server_ip }}":"$HOME/benchmark_dense_setup.py"
+
+            # SSH TO BENCHMARK SERVER
+            ssh -i "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}" "${{ secrets.BENCHMARKING_USERNAME }}@"$BENCHMARK_SERVER_IP" << ENDSSH
 
 
+              # RUN THE SETUP SCRIPT
+              python3 "$HOME/benchmark_dense_setup.py"
 
-            # RUN BENCHMARK WITH THE CHOSEN MODE
-            echo "RUNNING BENCHMARK WITH THE CHOSEN MODE"
-            nohup bash -c '
-              # ACTIVATE PYTHON ENVIRONMENT
-              source "/opt/benchmark/VectorDBBench/venv/bin/activate"
-              NUM_PER_BATCH=1000 DATASET_LOCAL_DIR="/opt/benchmark/parquet_files_holder" \
-              vectordbbench endee \
-                --token "BENCHMARKING" \
-                --region location \
-                --base-url "http://$ENDEE_IP:8080/api/v1" \
-                --index-name index1 \
-                --task-label "index1" \
-                --m 16 \
-                --ef-con 128 \
-                --ef-search 128 \
-                --precision float32 \
-                --version 1 \
-                --case-type Performance1536D50K \
-                --k 30 \
-                --num-concurrency "1" \
-                --concurrency-duration 30 \
-                --concurrency-timeout 3600 \
-                --drop-old \
-                --load \
-                --search-concurrent \
-                --search-serial
-            ' > /opt/benchmark/benchmark.log 2>&1 &
+              # RUN BENCHMARK WITH THE CHOSEN MODE
+              echo "RUNNING BENCHMARK WITH THE CHOSEN MODE"
+              nohup bash -c '
+                # ACTIVATE PYTHON ENVIRONMENT
+                source "\$HOME/VectorDBBench/venv/bin/activate"
+                NUM_PER_BATCH=1000 DATASET_LOCAL_DIR="/opt/benchmark/parquet_files_holder" \
+                vectordbbench endee \
+                  --token "BENCHMARKING" \
+                  --region location \
+                  --base-url "http://$ENDEE_IP:8080/api/v1" \
+                  --index-name index1 \
+                  --task-label "index1" \
+                  --m 16 \
+                  --ef-con 128 \
+                  --ef-search 128 \
+                  --precision float32 \
+                  --version 1 \
+                  --case-type Performance1536D50K \
+                  --k 30 \
+                  --num-concurrency "1" \
+                  --concurrency-duration 30 \
+                  --concurrency-timeout 3600 \
+                  --drop-old \
+                  --load \
+                  --search-concurrent \
+                  --search-serial
+              ' > /opt/benchmark/benchmark.log 2>&1 &
 
-            BENCHMARK_PID=\$!
-            echo "BENCHMARK STARTED WITH PID: \$BENCHMARK_PID"
-            echo \$BENCHMARK_PID > /opt/benchmark/benchmark.pid
+              BENCHMARK_PID=\$!
+              echo "BENCHMARK STARTED WITH PID: \$BENCHMARK_PID"
+              echo \$BENCHMARK_PID > /opt/benchmark/benchmark.pid
 
-            # WAIT FOR BENCHMARK TO COMPLETE - poll every 30 seconds 
-            echo "WAITING FOR BENCHMARK TO COMPLETE..."
-            while kill -0 \$BENCHMARK_PID 2>/dev/null; do
-              echo "BENCHMARK STILL RUNNING... (PID: \$BENCHMARK_PID)"
-              tail -3 /opt/benchmark/benchmark.log 2>/dev/null || true
-              sleep 30
-            done
+              # WAIT FOR BENCHMARK TO COMPLETE - poll every 30 seconds 
+              echo "WAITING FOR BENCHMARK TO COMPLETE..."
+              while kill -0 \$BENCHMARK_PID 2>/dev/null; do
+                echo "BENCHMARK STILL RUNNING... (PID: \$BENCHMARK_PID)"
+                tail -3 /opt/benchmark/benchmark.log 2>/dev/null || true
+                sleep 30
+              done
 
-            echo "BENCHMARK PROCESS FINISHED"
-            echo "===== BENCHMARK LOGS ====="
-            cat /opt/benchmark/benchmark.log
+              echo "BENCHMARK PROCESS FINISHED"
+              echo "===== BENCHMARK LOGS ====="
+              cat /opt/benchmark/benchmark.log
 
-            # CHECK IF BENCHMARK SUCCEEDED
-            if grep -q "BENCHMARK COMPLETED\|Finished\|success" /opt/benchmark/benchmark.log; then
-              echo "BENCHMARK COMPLETED SUCCESSFULLY"
-            else
-              echo "BENCHMARK MAY HAVE FAILED — CHECK LOGS ABOVE"
-              exit 1
-            fi
+              # CHECK IF BENCHMARK SUCCEEDED
+              if grep -q "BENCHMARK COMPLETED\|Finished\|success" /opt/benchmark/benchmark.log; then
+                echo "BENCHMARK COMPLETED SUCCESSFULLY"
+              else
+                echo "BENCHMARK MAY HAVE FAILED — CHECK LOGS ABOVE"
+                exit 1
+              fi
+
+            ENDSSH
 
             # ============================================ ENDEE HYBRID TESTING SETUP ============================================
+      # - name: Hybrid Benchmarking
+      #   run: |
 
-
-          ENDSSH
+      # - name: Sparse Benchmarking
+      #   run: | 
 
   # ──────────────────────────────────────────────────────────
   # JOB 4: Post final results to PR (always, even on failure)
