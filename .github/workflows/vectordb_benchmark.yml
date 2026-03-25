@@ -611,7 +611,7 @@ jobs:
             echo "RUNNING DENSE BENCHMARK"
             nohup bash -c '
               source "$HOME/VectorDBBench/venv/bin/activate"
-              NUM_PER_BATCH=1000 DATASET_LOCAL_DIR="$HOME/benchmark/parquet_files_holder" \
+              NUM_PER_BATCH=1000 DATASET_LOCAL_DIR="\$HOME/benchmark/parquet_files_holder" \
               vectordbbench endee \
                 --token "BENCHMARKING" \
                 --region location \
