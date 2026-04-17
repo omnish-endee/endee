@@ -885,7 +885,10 @@ jobs:
     name: Post Results 
     needs: [ validate-command, provision-servers, run-benchmark]
     runs-on: ubuntu-latest 
-    if: always()
+    if: |
+      always() &&
+      needs.validate-command.outputs.mode != '' && 
+      needs.validate-command.outputs.authorized == 'true'
 
     steps:
       # ─── SETUP SSH ─────────────────────────────────────────────────── 
