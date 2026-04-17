@@ -78,7 +78,7 @@ jobs:
             core.setOutput('head_ref',  pr.head.ref);
             core.info(`Mode: ${mode}  SHA: ${pr.head.sha}`);
 
-      - name: Check Commenter has write access 
+      - name: Check Commenter has admin access 
         id: authz 
         # steps is a GitHub Actions context object that lets you access outputs and metadata from previous steps within the same job.
         if: steps.parse.outputs.mode != ''
@@ -98,7 +98,7 @@ jobs:
               await github.rest.issues.createComment({
                 owner: context.repo.owner, repo: context.repo.repo,
                 issue_number: context.issue.number,
-                body: `@${context.payload.comment.user.login} — only collaborators with **write** access can trigger benchmarks (your level: \`${level}\`).`,
+                body: `@${context.payload.comment.user.login} — only collaborators with **admin** access can trigger benchmarks (your level: \`${level}\`).`,
               });
               core.setFailed('Unauthorized');
             }
