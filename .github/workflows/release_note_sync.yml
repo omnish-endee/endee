@@ -39,11 +39,16 @@ jobs:
       - name: Launch Endee Server
         id: launch 
         run: |
+            if [[ "$ARCH_NAME" == "avx2" || "$ARCH_NAME" == "avx512" ]]; then
+              AMI_ID="${{ vars.AMI_ID }}"
+            else
+              AMI_ID="${{ vars.ARM_AMI_ID }}"
+            fi
             ARCH_NAME="${{ matrix.arch.name }}"
             INSTANCE_TYPE="${{ matrix.arch.instance_type }}"
             ENDEE_INSTANCE_ID=$(aws ec2 run-instances \
               --region ${{ vars.AWS_REGION }} \
-              --image-id ${{ vars.AMI_ID }} \
+              --image-id $AMI_ID \
               --instance-type "$INSTANCE_TYPE" \
               --key-name ${{ secrets.ENDEE_PEM }} \
               --security-group-ids ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
@@ -101,10 +106,9 @@ jobs:
             # UPDATE ULIMIT OF OS 
             ulimit -n 5000
 
-            if [[ "${{ matrix.arch.name }}" == "avx2" || "${{ matrix.arch.name }}" == "avx512" ]]; then
-              ./install.sh --release --avx2
-            else
-              ./install.sh --release --neon
+            chmod +x ./install.sh
+            ./install.sh --release --"\$arch"
+
             fi
 
           EOF
