@@ -47,7 +47,7 @@ jobs:
               --security-group-ids ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
               --subnet-id ${{ secrets.AWS_SUBNET_ID }} \
               --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":30,"VolumeType":"gp3"}}]' \
-              --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${{ matrix.arc.name }}}] \
+              --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=${{ matrix.arc.name }}}]" \
               --query 'Instances[0].InstanceId' \
               --output text)
           
