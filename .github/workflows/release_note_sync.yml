@@ -40,12 +40,12 @@ jobs:
         id: launch 
         shell: bash
         run: |
+            ARCH_NAME="${{ matrix.arch.name }}"
             if [[ "$ARCH_NAME" == "avx2" ]] || [[ "$ARCH_NAME" == "avx512" ]]; then
               AMI_ID="${{ vars.AMI_ID }}"
             else
               AMI_ID="${{ vars.ARM_AMI_ID }}"
             fi
-            ARCH_NAME="${{ matrix.arch.name }}"
             INSTANCE_TYPE="${{ matrix.arch.instance_type }}"
             ENDEE_INSTANCE_ID=$(aws ec2 run-instances \
               --region ${{ vars.AWS_REGION }} \
