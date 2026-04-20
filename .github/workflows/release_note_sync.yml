@@ -13,7 +13,7 @@ jobs:
       matrix:
         arch:
           - name: avx2
-            instance_type: c5.large
+            instance_type: c6i.large
           - name: avx512
             instance_type: c6i.large
           - name: neon
@@ -38,8 +38,9 @@ jobs:
           
       - name: Launch Endee Server
         id: launch 
+        shell: bash
         run: |
-            if [[ "$ARCH_NAME" == "avx2" || "$ARCH_NAME" == "avx512" ]]; then
+            if [[ "$ARCH_NAME" == "avx2" ]] || [[ "$ARCH_NAME" == "avx512" ]]; then
               AMI_ID="${{ vars.AMI_ID }}"
             else
               AMI_ID="${{ vars.ARM_AMI_ID }}"
@@ -57,7 +58,7 @@ jobs:
               --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$ARCH_NAME}]" \
               --query 'Instances[0].InstanceId' \
               --output text)
-          
+            echo "InstanceID:$ENDEE_INSTA"
             aws ec2 wait instance-running \
               --instance-ids $ENDEE_INSTANCE_ID
 
