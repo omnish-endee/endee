@@ -136,16 +136,44 @@ jobs:
 
           scp -o StrictHostKeyChecking=no -i "$HOME/.ssh/${{ secrets.ENDEE_PEM }}" \
             ubuntu@${{ steps.launch.outputs.ip }}:"/home/ubuntu/endee/build/${{ matrix.arch.binary_file_name }}" \
-            ./endee-server-${{ matrix.arch.name }}
+            ./ndd-${{ matrix.arch.name }}
 
-      - name: Upload binary as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: endee-server-${{ matrix.arch.name }}
-          path: ./endee-server-${{ matrix.arch.name }}
+      # - name: Upload binary as artifact
+      #   uses: actions/upload-artifact@v4
+      #   with: 
+      #     name: ndd-${{ matrix.arch.name }}
+      #     path: ./ndd-${{ matrix.arch.name }}
+      
+      - name: Push Binaries to ndd-repo
+        run: |
+          git clone https://x-access-token:${{ secrets.PAT }}@github.com/Endee-Pro/ndd-docker.git
+          cd ndd-docker
 
-      # - name: Terminate instance
-      #   if: always()
-      #   run: |
-      #     aws ec2 terminate-instances \
-      #       --instance-ids ${{ steps.launch.outputs.instance_id }}
+          git checkout omnish/release-note-sync
+          mkdir -p build
+
+          # copy binary to build folder
+          cp ../ndd-${{ matrix.arch.name }} ./build/ndd-${{ matrix.arch.name }}
+
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+
+
+          git add .
+          git status
+
+          # only commit if there are changes
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Add binary ndd-${{ matrix.arch.name }} from release ${{ github.event.release.tag_name }}"
+            git push -u origin omnish/release-note-sync
+          fi
+          
+
+
+      - name: Terminate instance
+        if: always()
+        run: |
+          aws ec2 terminate-instances \
+            --instance-ids ${{ steps.launch.outputs.instance_id }}
