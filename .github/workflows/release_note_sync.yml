@@ -135,8 +135,8 @@ jobs:
           name: endee-server-${{ matrix.arch.name }}
           path: ./endee-server-${{ matrix.arch.name }}
 
-      - name: Terminate instance
-        if: always()
-        run: |
-          aws ec2 terminate-instances \
-            --instance-ids ${{ steps.launch.outputs.instance_id }}
+      # - name: Terminate instance
+      #   if: always()
+      #   run: |
+      #     aws ec2 terminate-instances \
+      #       --instance-ids ${{ steps.launch.outputs.instance_id }}
