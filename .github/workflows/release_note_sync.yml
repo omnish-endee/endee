@@ -15,12 +15,16 @@ jobs:
         arch:
           - name: avx2
             instance_type: c6i.large
+            binary_file_name: ndd-avx2
           - name: avx512
             instance_type: c6i.large
+            binary_file_name: ndd-avx2
           - name: neon
             instance_type: c6g.large
+            binary_file_name: ndd-neon
           - name: sve2
             instance_type: c7g.large
+            binary_file_name: ndd-neon
         
     steps:
 
@@ -126,7 +130,7 @@ jobs:
       - name: Download binary
         run: |
           scp -o StrictHostKeyChecking=no -i "$HOME/.ssh/${{ secrets.ENDEE_PEM }}" \
-            ubuntu@${{ steps.launch.outputs.ip }}:~/endee/bin/endee-server \
+            ubuntu@${{ steps.launch.outputs.ip }}:"$HOME/ubuntu/endee/build/${{ matrix.arch.binary_file_name}}" \
             ./endee-server-${{ matrix.arch.name }}
 
       - name: Upload binary as artifact
