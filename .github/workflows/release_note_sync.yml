@@ -149,31 +149,6 @@ jobs:
           name: ndd-${{ matrix.arch.name }}
           path: ./ndd-${{ matrix.arch.name }}
       
-      # - name: Push Binaries to ndd-repo
-      #   run: |
-      #     git clone https://x-access-token:${{ secrets.PAT }}@github.com/Endee-Pro/ndd-docker.git
-      #     cd ndd-docker
-
-      #     git checkout omnish/release-note-sync
-      #     mkdir -p build
-
-      #     # copy binary to build folder
-      #     cp ../ndd-${{ matrix.arch.name }} ./build/ndd-${{ matrix.arch.name }}
-
-      #     git config user.email "actions@github.com"
-      #     git config user.name "GitHub Actions"
-
-
-      #     git add .
-      #     git status
-
-      #     # only commit if there are changes
-      #     if git diff --staged --quiet; then
-      #       echo "No changes to commit"
-      #     else
-      #       git commit -m "Add binary ndd-${{ matrix.arch.name }} from release ${{ github.event.release.tag_name }}"
-      #       git push -u origin omnish/release-note-sync
-      #     fi
           
       - name: Terminate instance
         if: always()
@@ -205,6 +180,8 @@ jobs:
           cp ../binaries/ndd-avx512/ndd-avx512 ./build/ndd-avx512
           cp ../binaries/ndd-neon/ndd-neon   ./build/ndd-neon
           cp ../binaries/ndd-sve2/ndd-sve2   ./build/ndd-sve2
+          # copy Dockerfile from current repo
+          cp $GITHUB_WORKSPACE/Dockerfile ./Dockerfile
 
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
