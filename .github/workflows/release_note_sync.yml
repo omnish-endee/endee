@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     strategy:
+      fail-fast: false
       matrix:
         arch:
           - name: avx2
@@ -35,99 +36,107 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region:            ${{ vars.AWS_REGION }}
       
-          
       - name: Launch Endee Server
         id: launch 
         shell: bash
         run: |
-            ARCH_NAME="${{ matrix.arch.name }}"
-            if [[ "$ARCH_NAME" == "avx2" ]] || [[ "$ARCH_NAME" == "avx512" ]]; then
-              AMI_ID="${{ vars.AMI_ID }}"
-            else
-              AMI_ID="${{ vars.ARM_AMI_ID }}"
-            fi
-            INSTANCE_TYPE="${{ matrix.arch.instance_type }}"
-            ENDEE_INSTANCE_ID=$(aws ec2 run-instances \
-              --region ${{ vars.AWS_REGION }} \
-              --image-id $AMI_ID \
-              --instance-type "$INSTANCE_TYPE" \
-              --key-name ${{ secrets.ENDEE_PEM }} \
-              --security-group-ids ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
-              --subnet-id ${{ secrets.AWS_SUBNET_ID }} \
-              --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":30,"VolumeType":"gp3"}}]' \
-              --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$ARCH_NAME}]" \
-              --query 'Instances[0].InstanceId' \
-              --output text)
-            echo "InstanceID:$ENDEE_INSTA"
-            aws ec2 wait instance-running \
-              --instance-ids $ENDEE_INSTANCE_ID
+          ARCH_NAME="${{ matrix.arch.name }}"
+          INSTANCE_TYPE="${{ matrix.arch.instance_type }}"
 
-            IP=$(aws ec2 describe-instances \
-              --instance-ids $ENDEE_INSTANCE_ID \
-              --query 'Reservations[0].Instances[0].PublicIpAddress' \
-              --output text)
-            echo "ip=$IP" >> $GITHUB_OUTPUT
+          if [[ "$ARCH_NAME" == "avx2" ]] || [[ "$ARCH_NAME" == "avx512" ]]; then
+            AMI_ID="${{ vars.AMI_ID }}"
+          else
+            AMI_ID="${{ vars.ARM_AMI_ID }}"
+          fi
 
-      - name: write PEM file
+          ENDEE_INSTANCE_ID=$(aws ec2 run-instances \
+            --region ${{ vars.AWS_REGION }} \
+            --image-id "$AMI_ID" \
+            --instance-type "$INSTANCE_TYPE" \
+            --key-name ${{ secrets.ENDEE_PEM }} \
+            --security-group-ids ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
+            --subnet-id ${{ secrets.AWS_SUBNET_ID }} \
+            --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":30,"VolumeType":"gp3"}}]' \
+            --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$ARCH_NAME}]" \
+            --query 'Instances[0].InstanceId' \
+            --output text)
+
+          echo "InstanceID: $ENDEE_INSTANCE_ID"
+          echo "instance_id=$ENDEE_INSTANCE_ID" >> $GITHUB_OUTPUT
+
+          aws ec2 wait instance-running \
+            --instance-ids $ENDEE_INSTANCE_ID
+
+          IP=$(aws ec2 describe-instances \
+            --instance-ids $ENDEE_INSTANCE_ID \
+            --query 'Reservations[0].Instances[0].PublicIpAddress' \
+            --output text)
+
+          echo "IP: $IP"
+          echo "ip=$IP" >> $GITHUB_OUTPUT
+
+      - name: Write PEM file
         run: |
-          mkdir -p "~/.ssh"
-          echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > "~/.ssh/${{ secrets.ENDEE_PEM }}"
-          chmod 400 "~/.ssh/${{ secrets.ENDEE_PEM }}"
-          echo "Endee PEM file Created"
+          mkdir -p "$HOME/.ssh"
+          echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > "$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
+          chmod 400 "$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
+          echo "PEM file created"
       
-      - name: wait for ssh to be ready 
+      - name: Wait for SSH to be ready 
+        shell: bash
         run: |
-          for i in {1..5}; do
+          ENDEE_SSH_READY=false
+          ENDEE_IP="${{ steps.launch.outputs.ip }}"
+          ENDEE_PEM_FILE="$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
+
+          for i in {1..20}; do
             if ssh -i "$ENDEE_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ubuntu@"$ENDEE_IP" "echo ok" 2>/dev/null; then
-              echo "SSH ready on ${{ matrix.arc.name }} Endee @ $ENDEE_IP"
+              echo "SSH ready on ${{ matrix.arch.name }} @ $ENDEE_IP"
               ENDEE_SSH_READY=true
               break
             fi
-            echo "Failed $i/5 retrying in 1 second..."
-            sleep 1
+            echo "Attempt $i/20 failed, retrying in 10 seconds..."
+            sleep 10
           done
+
           if [ "$ENDEE_SSH_READY" = false ]; then
             echo "Failed to SSH to Endee Server"
             exit 1
           fi
 
-      - name: Run and Build Endee Binary
+      - name: Build Endee Binary
         run: |
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/${{ secrets.ENDEE_PEM }} ubuntu@${{ steps.launch.outputs.ip }} << 'EOF'
-            set -euo pipefail 
-            sudo aptget update -y
+          ssh -o StrictHostKeyChecking=no -i "$HOME/.ssh/${{ secrets.ENDEE_PEM }}" ubuntu@${{ steps.launch.outputs.ip }} << 'EOF'
+            set -euo pipefail
+            sudo apt-get update -y
+            sudo apt-get install -y git build-essential
             cd ~
-            # CLONE ENDEE REPO 
             git clone https://github.com/endee-io/endee.git
-
             cd endee
-
-            arc=\$(grep -o 'avx2\|avx512\|neon\|sve2' /proc/cpuinfo | sort -u)
-            echo "ARCHITECTURE: \$arc"
-
-            # UPDATE ULIMIT OF OS 
             ulimit -n 5000
-
             chmod +x ./install.sh
-            ./install.sh --release --"\$arch"
-
+            ARCH="${{ matrix.arch.name }}"
+            if [[ "$ARCH" == "avx2" ]] || [[ "$ARCH" == "avx512" ]]; then
+              ./install.sh --release --avx2
+            else
+              ./install.sh --release --neon
             fi
-
           EOF
 
+      - name: Download binary
+        run: |
+          scp -o StrictHostKeyChecking=no -i "$HOME/.ssh/${{ secrets.ENDEE_PEM }}" \
+            ubuntu@${{ steps.launch.outputs.ip }}:~/endee/bin/endee-server \
+            ./endee-server-${{ matrix.arch.name }}
 
+      - name: Upload binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: endee-server-${{ matrix.arch.name }}
+          path: ./endee-server-${{ matrix.arch.name }}
 
-
-            
-        
-      
-
-
-
-
-
-
-
-
-
-
+      - name: Terminate instance
+        if: always()
+        run: |
+          aws ec2 terminate-instances \
+            --instance-ids ${{ steps.launch.outputs.instance_id }}
