@@ -70,6 +70,7 @@ jobs:
 
       - name: write PEM file
         run: |
+          mkdir -p "~/.ssh"
           echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > "~/.ssh/${{ secrets.ENDEE_PEM }}"
           chmod 400 "~/.ssh/${{ secrets.ENDEE_PEM }}"
           echo "Endee PEM file Created"
