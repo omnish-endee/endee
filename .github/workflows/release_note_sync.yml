@@ -129,8 +129,13 @@ jobs:
 
       - name: Download binary
         run: |
+          # verify path exists first
+          ssh -o StrictHostKeyChecking=no -i "$HOME/.ssh/${{ secrets.ENDEE_PEM }}" \
+            ubuntu@${{ steps.launch.outputs.ip }} \
+            "find /home/ubuntu -name '${{ matrix.arch.binary_file_name }}' 2>/dev/null"
+
           scp -o StrictHostKeyChecking=no -i "$HOME/.ssh/${{ secrets.ENDEE_PEM }}" \
-            ubuntu@${{ steps.launch.outputs.ip }}:"$HOME/ubuntu/endee/build/${{ matrix.arch.binary_file_name}}" \
+            ubuntu@${{ steps.launch.outputs.ip }}:"/home/ubuntu/endee/build/${{ matrix.arch.binary_file_name }}" \
             ./endee-server-${{ matrix.arch.name }}
 
       - name: Upload binary as artifact
