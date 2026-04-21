@@ -138,13 +138,56 @@ jobs:
             ubuntu@${{ steps.launch.outputs.ip }}:"/home/ubuntu/endee/build/${{ matrix.arch.binary_file_name }}" \
             ./ndd-${{ matrix.arch.name }}
 
-      # - name: Upload binary as artifact
-      #   uses: actions/upload-artifact@v4
-      #   with: 
-      #     name: ndd-${{ matrix.arch.name }}
-      #     path: ./ndd-${{ matrix.arch.name }}
+      - name: Upload binary as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ndd-${{ matrix.arch.name }}
+          path: ./ndd-${{ matrix.arch.name }}
       
-      - name: Push Binaries to ndd-repo
+      # - name: Push Binaries to ndd-repo
+      #   run: |
+      #     git clone https://x-access-token:${{ secrets.PAT }}@github.com/Endee-Pro/ndd-docker.git
+      #     cd ndd-docker
+
+      #     git checkout omnish/release-note-sync
+      #     mkdir -p build
+
+      #     # copy binary to build folder
+      #     cp ../ndd-${{ matrix.arch.name }} ./build/ndd-${{ matrix.arch.name }}
+
+      #     git config user.email "actions@github.com"
+      #     git config user.name "GitHub Actions"
+
+
+      #     git add .
+      #     git status
+
+      #     # only commit if there are changes
+      #     if git diff --staged --quiet; then
+      #       echo "No changes to commit"
+      #     else
+      #       git commit -m "Add binary ndd-${{ matrix.arch.name }} from release ${{ github.event.release.tag_name }}"
+      #       git push -u origin omnish/release-note-sync
+      #     fi
+          
+      - name: Terminate instance
+        if: always()
+        run: |
+          aws ec2 terminate-instances \
+            --instance-ids ${{ steps.launch.outputs.instance_id }}
+
+  # ← separate job, runs AFTER all 4 builds finish
+  push-binaries:
+    runs-on: ubuntu-latest
+    needs: create-and-build      # waits for all 4 matrix jobs to complete
+
+    steps:
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: ./binaries        # downloads all 4 artifacts here
+
+      - name: Push all binaries to ndd-repo
         run: |
           git clone https://x-access-token:${{ secrets.PAT }}@github.com/Endee-Pro/ndd-docker.git
           cd ndd-docker
@@ -152,28 +195,20 @@ jobs:
           git checkout omnish/release-note-sync
           mkdir -p build
 
-          # copy binary to build folder
-          cp ../ndd-${{ matrix.arch.name }} ./build/ndd-${{ matrix.arch.name }}
+          # copy all 4 binaries at once
+          cp ../binaries/ndd-avx2/ndd-avx2   ./build/ndd-avx2
+          cp ../binaries/ndd-avx512/ndd-avx512 ./build/ndd-avx512
+          cp ../binaries/ndd-neon/ndd-neon   ./build/ndd-neon
+          cp ../binaries/ndd-sve2/ndd-sve2   ./build/ndd-sve2
 
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
 
-
           git add .
-          git status
 
-          # only commit if there are changes
           if git diff --staged --quiet; then
             echo "No changes to commit"
           else
-            git commit -m "Add binary ndd-${{ matrix.arch.name }} from release ${{ github.event.release.tag_name }}"
+            git commit -m "Add binaries from release ${{ github.event.release.tag_name }}"
             git push -u origin omnish/release-note-sync
           fi
-          
-
-
-      - name: Terminate instance
-        if: always()
-        run: |
-          aws ec2 terminate-instances \
-            --instance-ids ${{ steps.launch.outputs.instance_id }}
