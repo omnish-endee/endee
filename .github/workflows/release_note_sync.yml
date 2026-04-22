@@ -182,7 +182,7 @@ jobs:
           cp ../binaries/ndd-sve2/ndd-sve2   ./build/ndd-sve2
 
           # UPDATE TAG IN DOCKERFILE 
-          sed -i 's/LABEL version=".*" /LABEL version=${{ github.event.inputs.tag_name }}' ./Dockerfile
+          sed -i 's/LABEL version=".*"/LABEL version="${{ github.event.inputs.tag_name }}"/' ./Dockerfile
           
 
           git config user.email "actions@github.com"
