@@ -180,8 +180,10 @@ jobs:
           cp ../binaries/ndd-avx512/ndd-avx512 ./build/ndd-avx512
           cp ../binaries/ndd-neon/ndd-neon   ./build/ndd-neon
           cp ../binaries/ndd-sve2/ndd-sve2   ./build/ndd-sve2
-          # copy Dockerfile from current repo
-          cp $GITHUB_WORKSPACE/Dockerfile ./Dockerfile
+
+          # UPDATE TAG IN DOCKERFILE 
+          sed -i 's/LABEL version=".*" /LABEL version=${{ github.event.inputs.tag_name }}' ./Dockerfile
+          
 
           git config user.email "actions@github.com"
           git config user.name "GitHub Actions"
