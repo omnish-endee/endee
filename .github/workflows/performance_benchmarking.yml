@@ -6,7 +6,7 @@ on:
     branches: [ feature/ci_main ]
 
 concurrency:
-  group: vectordb-benchmark-pr${{ github.event.issue.number }}
+  group: performance-benchmark-pr${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
