@@ -43,7 +43,7 @@ jobs:
         with:
           script: | 
             const body = context.payload.comment.body.trim();
-            const match = body.match(/\/performance_benchmarking\s+(dense|hybrid|sparse)/i);
+            const match = body.match(/\/performance_benchmarking\s+(dense|hybrid|sparse)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/i);
 
             // IF NO MATCH, COMMENT IS PLAIN ISSUE COMMENT
             if (!match) {
@@ -53,9 +53,9 @@ jobs:
               }
             // MODE CONTAINS THE TYPE OF PERFORMANCE BENCHMARKING TO BE RUN THAT IS DENSE, HYBRID, OR SPARSE
             const mode = match[1].toLowerCase();
-            const server_ami_id = match[2].toLowerCase();
+            const server_ami_id = match[2];
             const server_machine_type = match[3].toLowerCase();
-            const client_ami_id = match[4].toLowerCase();
+            const client_ami_id = match[4];
             const client_machine_type = match[5].toLowerCase();
             const test_script = match[6].toLowerCase();
             core.setOutput('mode', mode);
