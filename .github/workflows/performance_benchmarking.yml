@@ -1,0 +1,369 @@
+name: Performance Benchmarking
+
+on:
+  issue_comment:
+    types: [ cretaed ]
+    branches: [ feature/ci_main ]
+
+concurrency:
+  group: vectordb-benchmark-pr${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+jobs:
+  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ======
+  validate-command:
+    name: Validate Command
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: read
+      statuses: write
+
+    # ONLY RUN ON PR COMMENTS(NOT ON PLAIN ISSUE COMMENTS)
+    if: |
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '/performance_benchmarking')
+    
+    outputs:
+      mode: ${{ steps.parse.outputs.mode }}
+      pr_number: ${{ steps.parse.outputs.pr_number }}
+      head_sha: ${{ steps.parse.outputs.head_sha }}
+      head_ref: ${{ steps.parse.outputs.head_ref }}
+      authorized: ${{ steps.authz.outputs.authorized }}
+      server_ami_id: ${{ steps.authz.outputs.server_ami_id }}
+      server_machine_type: ${{ steps.authz.outputs.server_machine_type }}
+      client_ami_id: ${{ steps.authz.outputs.client_ami_id }}
+      client_machine_type: ${{ steps.authz.outputs.client_machine_type }}
+      test_script: ${{ steps.authz.outputs.test_script }}
+
+    steps:
+      - name: Parse /performance_benchmarking command
+        id: parse
+        uses: actions/github-script@v7 
+        with:
+          script: | 
+            const body = context.payload.comment.body.trim();
+            const match = body.match(/\/performance_benchmarking\s+(dense|hybrid|sparse)/i);
+
+            // IF NO MATCH, COMMENT IS PLAIN ISSUE COMMENT
+            if (!match) {
+                core.setOutput('mode', '');
+                core.info('No Valid /performance_benchmarking <mode> found - skipping');
+                return;
+              }
+            // MODE CONTAINS THE TYPE OF PERFORMANCE BENCHMARKING TO BE RUN THAT IS DENSE, HYBRID, OR SPARSE
+            const mode = match[1].toLowerCase();
+            const client_machine_type = match[2].toLowerCase();
+            const server_machine_type = match[3].toLowerCase();
+            const test_script = match[4].toLowerCase();
+            core.setOutput('mode', mode);
+            core.setOutput('server_machine_type', server_machine_type);
+            core.setOutput('client_machine_type', client_machine_type);
+            core.setOutput('test_script', test_script);
+
+            // FETCH PR METADATA
+            // TRIGGER IS ISSUE_COMMENT EVENT - CONTEXT DOESN'T AUTOMATICALLY CARRY PR-SPECIFIC DATA
+            const { data: pr } = await github.rest.pulls.get({
+              owner:       context.repo.owner,
+              repo:        context.repo.repo,
+              pull_number: context.issue.number,
+            });
+ 
+            core.setOutput('pr_number', String(context.issue.number));
+            core.setOutput('head_sha',  pr.head.sha);
+            core.setOutput('head_ref',  pr.head.ref);
+            core.info(`Mode: ${mode}  SHA: ${pr.head.sha}`);
+
+      - name: Check Commenter has write access 
+        id: authz 
+        # steps is a GitHub Actions context object that lets you access outputs and metadata from previous steps within the same job.
+        if: steps.parse.outputs.mode != ''
+        uses: actions/github-script@v7 
+        with:
+          script: |
+            const { data: perm } = await github.rest.repos.getCollaboratorPermissionLevel({
+              owner:    context.repo.owner,
+              repo:     context.repo.repo,
+              username: context.payload.comment.user.login,
+            });
+            const level   = perm.permission;
+            const allowed = ['admin'].includes(level);
+            core.setOutput('authorized', String(allowed));
+ 
+            if (!allowed) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: `@${context.payload.comment.user.login} — only collaborators with **write** access can trigger benchmarks (your level: \`${level}\`).`,
+              });
+              core.setFailed('Unauthorized');
+            }
+      
+      - name: Acknowledge with Reation
+        if: steps.parse.outputs.mode != '' && steps.authz.outputs.authorized == 'true'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.WORKFLOW_PAT }} 
+          script: |
+            await github.rest.reactions.createForIssueComment({
+              owner:      context.repo.owner,
+              repo:       context.repo.repo,
+              comment_id: context.payload.comment.id,
+              content:    'rocket',
+            });
+
+  # ──────────────────────────────────────────────────────────
+  # JOB 1: Provision both servers in parallel 
+  # ──────────────────────────────────────────────────────────
+  provision-servers:
+    name: Provision Servers
+    needs: validate-command
+    if: |
+      needs.validate-command.outputs.mode != '' &&
+      needs.validate-command.outputs.authorized == 'true'
+    runs-on: ubuntu-latest
+ 
+    outputs:
+      endee_server_id: ${{ steps.start_endee_server.outputs.instance_id }}
+      endee_server_ip: ${{ steps.start_endee_server.outputs.public_ip }}
+      endee_server_private_ip: ${{ steps.start_endee_server.outputs.private_ip }}
+      benchmark_server_id: ${{ steps.start_benchmark_server.outputs.instance_id }}
+      benchmark_server_ip: ${{ steps.start_benchmark_server.outputs.public_ip }}
+ 
+    steps:
+      - name: Checkout PR commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate-command.outputs.head_sha }}
+ 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region:            ${{ vars.AWS_REGION }}
+ 
+      - name: Post "Starting" status to PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const mode      = '${{ needs.validate-command.outputs.mode }}';
+            const sha       = '${{ needs.validate-command.outputs.head_sha }}'.slice(0,7);
+            const actor     = context.payload.comment.user.login;
+            const modeLabel = {dense:'Dense', hybrid:'Hybrid'}[mode];
+            const runId = '${{ github.run_id }}';
+ 
+            const body = [
+              `<!-- run-id: ${runId} -->`,
+              `## VectorDB Benchmark — ${modeLabel} — Starting`,
+              ``,
+              `Triggered by @${actor} · Commit \`${sha}\``,
+              ``,
+              `| Step | Status |`,
+              `|------|--------|`,
+              `| Provision Servers    | Starting… |`,
+              `| Deploy Endee Server  | Waiting    |`,
+              `| Run Benchmark        | Waiting    |`,
+              `| Results              | Waiting    |`,
+              `| Teardown             | Waiting    |`,
+            ].join('\n');
+ 
+            // Update the menu comment that was posted on PR open
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const menu = comments.find(c =>
+              c.body.includes(`<!-- run-id: ${runId} -->`) &&
+              c.user.login === 'github-actions[bot]'
+            );
+            if (menu) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                comment_id: menu.id, body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: context.issue.number, body,
+              });
+            }
+ 
+      - name: Set commit status → pending
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner, repo: context.repo.repo,
+              sha:   '${{ needs.validate-command.outputs.head_sha }}',
+              state: 'pending',
+              description: 'Benchmark in progress…',
+              context: 'ci/vectordb-benchmark',
+              target_url: `https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}`,
+            });
+      
+      - name: Server Names
+        run: |
+          echo "ENDEE_INSTANCE_NAME=Endee_performance${{ needs.validate-command.outputs.pr_number }}" >> $GITHUB_ENV
+          echo "PERFORMANCE_BENCHMARKING_INSTANCE_NAME=Benchmark_performance_${{ needs.validate-command.outputs.pr_number }}" >> $GITHUB_ENV
+ 
+      - name: Launch Endee Server
+        id: start_endee_server
+        run: |
+          ENDEE_INSTANCE_ID=$(aws ec2 run-instances \
+            --region ${{ vars.AWS_REGION }} \
+            --image-id ${{ needs.provision-servers.outputs.server_ami_id }} \
+            --instance-type ${{ needs.provision-servers.outputs.server_machine_type }} \
+            --key-name ${{ secrets.ENDEE_PEM }} \
+            --security-group-ids ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
+            --subnet-id ${{ secrets.AWS_SUBNET_ID }} \
+            --block-device-mappings '[{"DeviceName":"/dev/sda1","Ebs":{"VolumeSize":30,"VolumeType":"gp3"}}]' \
+            --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$ENDEE_INSTANCE_NAME}]" \
+            --query 'Instances[0].InstanceId' \
+            --output text)
+
+          aws ec2 wait instance-running \
+            --instance-ids $ENDEE_INSTANCE_ID
+
+          echo "ENDEE INSTANCE ID: $ENDEE_INSTANCE_ID"
+
+          IP=$(aws ec2 describe-instances \
+              --instance-ids $ENDEE_INSTANCE_ID \
+              --query 'Reservations[0].Instances[0].PublicIpAddress' \
+              --output text)
+          
+          PRIVATE_IP=$(aws ec2 describe-instances \
+              --instance-ids $ENDEE_INSTANCE_ID \
+              --query 'Reservations[0].Instances[0].PrivateIpAddress' \
+              --output text)
+          
+          # CHECK IF PORT 8080 IS OPEN FOR VPC NETWORK
+          EXISTS=$(aws ec2 describe-security-groups \
+            --group-ids ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
+            --query "SecurityGroups[0].IpPermissions[?FromPort==\`8080\` && ToPort==\`8080\` && IpRanges[?CidrIp=='172.31.0.0/16']]" \
+            --output text)
+          
+          # IF NOT EXISTS THEN OPEN PORT 8080 FOR VPC NETWORK
+          if [ -z "$EXISTS" ]; then 
+            aws ec2 authorize-security-group-ingress \
+              --group-id ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
+              --protocol tcp \
+              --port 8080 \
+              --cidr 172.31.0.0/16
+          fi
+          
+          echo "OPEN PORT FOR VPC"
+          echo "instance_id=$ENDEE_INSTANCE_ID" >> $GITHUB_OUTPUT
+          echo "public_ip=$IP" >> $GITHUB_OUTPUT
+          echo "private_ip=$PRIVATE_IP" >> $GITHUB_OUTPUT
+          echo "Endee Server: $IP"
+          
+ 
+      - name: Launch Benchmark Server
+        id: start_benchmark_server
+        run: |
+          BENCHMARKING_INSTANCE_ID=$(aws ec2 run-instances \
+              --region ${{ vars.AWS_REGION }} \
+              --image-id ${{ needs.provision-servers.outputs.client_ami_id }} \
+              --instance-type ${{ needs.provision-servers.outputs.client_machine_type }} \
+              --key-name ${{ secrets.BENCHMARKING_KEY_PAIR_NAME }} \
+              --security-group-ids ${{ secrets.VECTORDBBENCH_SERVER_GROUP_ID }} \
+              --subnet-id ${{ secrets.AWS_SUBNET_ID }} \
+              --tag-specifications "ResourceType=instance,Tags=[{Key=Name,Value=$PERFORMANCE_BENCHMARKING_INSTANCE_NAME}]" \
+              --query 'Instances[0].InstanceId' \
+              --output text)
+
+          aws ec2 wait instance-running \
+            --instance-ids $BENCHMARKING_INSTANCE_ID
+          echo "BENCHMARKING INSTANCE ID: $BENCHMARKING_INSTANCE_ID"
+          
+          IP=$(aws ec2 describe-instances \
+              --instance-ids $BENCHMARKING_INSTANCE_ID \
+              --query 'Reservations[0].Instances[0].PublicIpAddress' \
+              --output text)
+          
+          echo "instance_id=$BENCHMARKING_INSTANCE_ID" >> $GITHUB_OUTPUT
+          echo "public_ip=$IP" >> $GITHUB_OUTPUT
+          echo "Benchmark Server: $IP"
+ 
+      - name: Wait for SSH on both servers
+        run: |
+
+          echo "Creating PEM files for both hosts..." 
+          mkdir -p ~/.ssh 
+
+          echo "${{ secrets.ENDEE_SSH_PRIVATE_KEY }}" > "$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
+          chmod 400 "$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
+          echo "Endee PEM file Created"
+
+          echo "${{ secrets.BENCHMARKING_SSH_PRIVATE_KEY }}" > "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}"
+          chmod 400 "$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}"
+          echo "BENCHMARKING PEM file Created"
+
+          ENDEE_PEM_FILE="$HOME/.ssh/${{ secrets.ENDEE_PEM }}"
+          BENCHMARKING_PEM_FILE="$HOME/.ssh/${{ secrets.BENCHMARKING_PEM }}"
+          ENDEE_IP="${{ steps.start_endee_server.outputs.public_ip }}"
+          PERFORMANCE_BENCHMARKING_IP="${{ steps.start_benchmark_server.outputs.public_ip }}"
+
+          echo "Waiting for SSH on Endee Server..."
+          ENDEE_SSH_READY=false
+          for i in {1..5}; do
+            if ssh -i "$ENDEE_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ubuntu@"$ENDEE_IP" "echo ok" 2>/dev/null; then
+              echo "SSH ready on Endee @ $ENDEE_IP"
+              ENDEE_SSH_READY=true
+              break
+            fi
+            echo "Failed $i/5 retrying in 1 second..."
+            sleep 1
+          done
+          if [ "$ENDEE_SSH_READY" = false ]; then
+            echo "Failed to SSH to Endee Server"
+            exit 1
+          fi
+
+          echo "Waiting for SSH on Benchmark Server..."
+          BENCHMARKING_SSH_READY=false
+          for i in {1..5}; do
+            if ssh -i "$PERFORMANCE_PEM_FILE" -o StrictHostKeyChecking=no -o ConnectTimeout=5 -o BatchMode=yes ubuntu@"$PERFORMANCE_BENCHMARKING_IP" "echo ok" 2>/dev/null; then
+              echo "SSH ready on Benchmark @ $BENCHMARKING_IP"
+              BENCHMARKING_SSH_READY=true
+              break
+            fi
+            echo "Failed $i/5 retrying in 1 second..."
+            sleep 1
+          done
+          if [ "$BENCHMARKING_SSH_READY" = false ]; then
+            echo "Failed to SSH to Benchmark Server"
+            exit 1
+          fi
+ 
+      - name: Update PR → Servers up
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const mode      = '${{ needs.validate-command.outputs.mode }}';
+            const sha       = '${{ needs.validate-command.outputs.head_sha }}'.slice(0,7);
+            const actor     = context.payload.comment.user.login;
+            const modeLabel = {dense:'Dense', hybrid:'Hybrid'}[mode];
+            const runId = '${{ github.run_id }}';
+            const body = [
+              `<!-- run-id: ${runId} -->`,
+              `## VectorDB Benchmark — ${modeLabel} — Running`,
+              ``,
+              `Triggered by @${actor} · Commit \`${sha}\``,
+              ``,
+              `| Step | Status |`,
+              `|------|--------|`,
+              `| Provision Servers    | Up         |`,
+              `| Deploy Endee Server  | Deploying… |`,
+              `| Run Benchmark        | Waiting    |`,
+              `| Results              | Waiting    |`,
+              `| Teardown             | Waiting    |`,
+            ].join('\n');
+            const { data: cs } = await github.rest.issues.listComments({
+              owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number,
+            });
+            const sc = cs.find(c => c.body.includes('VectorDB Benchmark —') && c.user.login === 'github-actions[bot]');
+            if (sc) await github.rest.issues.updateComment({
+              owner: context.repo.owner, repo: context.repo.repo, comment_id: sc.id, body,
+            });
