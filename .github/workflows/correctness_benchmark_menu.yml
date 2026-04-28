@@ -208,6 +208,20 @@ jobs:
               `6. Both servers terminated   →  always, even on failure`,
               `\`\`\``,
               ``,
+              `---`,
+              ``,
+              `### How Performance Benchmarking Works`,
+              `\`\`\``,
+              `1. Post /performance_benchmarking <mode> <server_type> <client_type> <test_script>`,
+              `2. Endee Server Create  →  this branch's code deployed  →  Endee starts in chosen mode`,
+              `3. Benchmark Server Create  →  benchmark suite transferred`,
+              `4. Benchmark Server runs performance benchmarking against Endee Server`,
+              `5. Benchmark Server then fetch matrics from MongoDB and check against performance against recorded performance`,
+              `6. On Merge, new results created in MongoDB`,
+              `7. Results posted back here  →  pass/fail + full metrics table`,
+              `8. Both servers terminated   →  always, even on failure`,
+              `\`\`\``,
+
               `> After a new push, CI must pass again before this menu reappears.`,
             ].join('\n');
 
