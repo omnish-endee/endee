@@ -10,7 +10,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ======
+  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ====== 
   validate-command:
     name: Validate Command
     runs-on: ubuntu-latest
@@ -53,11 +53,15 @@ jobs:
               }
             // MODE CONTAINS THE TYPE OF PERFORMANCE BENCHMARKING TO BE RUN THAT IS DENSE, HYBRID, OR SPARSE
             const mode = match[1].toLowerCase();
-            const client_machine_type = match[2].toLowerCase();
+            const server_ami_id = match[2].toLowerCase();
             const server_machine_type = match[3].toLowerCase();
-            const test_script = match[4].toLowerCase();
+            const client_ami_id = match[4].toLowerCase();
+            const client_machine_type = match[5].toLowerCase();
+            const test_script = match[6].toLowerCase();
             core.setOutput('mode', mode);
+            core.setOutput('server_ami_id', server_ami_id);
             core.setOutput('server_machine_type', server_machine_type);
+            core.setOutput('client_ami_id', client_ami_id);
             core.setOutput('client_machine_type', client_machine_type);
             core.setOutput('test_script', test_script);
 
