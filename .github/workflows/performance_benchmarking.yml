@@ -2,7 +2,7 @@ name: Performance Benchmarking
 
 on:
   issue_comment:
-    types: [ cretaed ]
+    types: [ created ]
     branches: [ feature/ci_main ]
 
 concurrency:
