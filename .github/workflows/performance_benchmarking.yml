@@ -5,14 +5,14 @@ on:
     types: [ created ]
     branches: [ feature/ci_main ]
 
-concurrency:
-  group: vectordb-benchmark-pr${{ github.event.issue.number }}
-  cancel-in-progress: true
 
 jobs:
   # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ======  
   validate-command:
     name: Validate Command
+    concurrency:
+      group: vectordb-benchmark-pr${{ github.event.issue.number }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -30,11 +30,11 @@ jobs:
       head_sha: ${{ steps.parse.outputs.head_sha }}
       head_ref: ${{ steps.parse.outputs.head_ref }}
       authorized: ${{ steps.authz.outputs.authorized }}
-      server_ami_id: ${{ steps.authz.outputs.server_ami_id }}
-      server_machine_type: ${{ steps.authz.outputs.server_machine_type }}
+      server_ami_id: ${{ steps.parse.outputs.server_ami_id }}
+      server_machine_type: ${{ steps.parse.outputs.server_machine_type }}
       client_ami_id: ${{ steps.authz.outputs.client_ami_id }}
-      client_machine_type: ${{ steps.authz.outputs.client_machine_type }}
-      test_script: ${{ steps.authz.outputs.test_script }}
+      client_machine_type: ${{ steps.parse.outputs.client_machine_type }}
+      test_script: ${{ steps.parse.outputs.test_script }}
 
     steps:
       - name: Parse /performance_benchmarking command
