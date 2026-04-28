@@ -5,14 +5,14 @@ on:
     types: [ created ]
     branches: [ feature/ci_main ]
 
+concurrency:
+  group: vectordb-benchmark-pr${{ github.event.issue.number }}
+  cancel-in-progress: true
 
 jobs:
-  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ======  
+  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ======
   validate-command:
     name: Validate Command
-    concurrency:
-      group: vectordb-benchmark-pr${{ github.event.issue.number }}
-      cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
       issues: write
