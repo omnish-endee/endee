@@ -1,4 +1,4 @@
-name: Release Notes Syncing
+name: Docker Beta Version
 
 on:
   workflow_dispatch:
