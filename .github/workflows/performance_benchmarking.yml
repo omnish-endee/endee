@@ -6,11 +6,11 @@ on:
     branches: [ feature/ci_main ]
 
 concurrency:
-  group: vectordb-benchmark-pr${{ github.event.issue.number }}
+  group: performance-benchmark-pr${{ github.event.issue.number }}
   cancel-in-progress: true
 
 jobs:
-  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ======
+  # ====== GATE: VALIDATE THE COMMAND BEFORE DOING ANYTHING EXPENSIVE ====== 
   validate-command:
     name: Validate Command
     runs-on: ubuntu-latest
